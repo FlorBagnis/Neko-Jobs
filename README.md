@@ -8,24 +8,55 @@ Un bot gratuito que revisa cada hora las páginas de empleo de empresas tech y S
 
 * 🤖 **Se ejecuta solo:** GitHub Actions lo corre cada hora, sin que tengas la compu prendida.
 * 🎯 **Filtra por título:** te avisa solo de los puestos que coinciden con tus palabras clave (soporte técnico, Customer Experience, Customer Success, etc.) y descarta los que pongas en la lista de exclusión.
-* 💬 **Avisa por Telegram:** recibís el título, el lugar y el link de cada puesto nuevo.
+* 💬 **Avisa por Telegram** (y opcionalmente por WhatsApp): recibís el título, el lugar y el link de cada puesto nuevo.
 * 🛡️ **Sin repetidos:** recuerda los puestos que ya te avisó. Si falla el envío, reintenta en la próxima corrida.
 
 ---
 
-## 🚀 Cómo usarlo (unos 15 minutos)
+## 🚀 Cómo usarlo
 
-1. **Hacé un fork** de este repositorio (botón *Fork*, arriba a la derecha).
-2. **Creá tu bot:** en Telegram hablá con [@BotFather](https://t.me/BotFather), enviá `/newbot` y guardá el token que te da.
-3. **Obtené tu chat ID:** escribile cualquier mensaje a tu bot y abrí en el navegador `https://api.telegram.org/bot<TU_TOKEN>/getUpdates` (reemplazá `<TU_TOKEN>`). Buscá `"chat":{"id": ...}` y copiá ese número.
-4. **Cargá tus secretos** en tu fork: *Settings → Secrets and variables → Actions → New repository secret*
-   * `TELEGRAM_TOKEN`: el token del paso 2
-   * `TELEGRAM_CHAT_ID`: el número del paso 3
-5. **Reiniciá la memoria:** abrí `estado.json`, tocá el lápiz ✏️, dejá solamente `{}` y guardá (*Commit changes*). Así el bot te avisa de los puestos que hay hoy y no de los míos.
-6. **Personalizá tu búsqueda** (ver sección siguiente).
-7. **Activá Actions:** pestaña *Actions* → botón verde "I understand my workflows, go ahead and enable them". Después entrá a *Monitor de empleos* → *Run workflow* para probarlo.
+Elegí **una** de las dos opciones para tener tu copia del proyecto. Después seguí con la sección **Configuración**.
 
-Desde ese momento corre solo cada hora.
+### Opción A: Fork (la más fácil)
+
+1. Tocá el botón **Fork**, arriba a la derecha de esta página.
+2. Tocá **Create fork**.
+3. Listo, ya tenés tu copia. Pasá a **Configuración**.
+
+### Opción B: Descargar el ZIP y subirlo a tu propio repo
+
+1. En esta página tocá el botón AZUL **Code** y después **Download ZIP**.
+
+ <img width="609" height="494" alt="image" src="https://github.com/user-attachments/assets/edb0e0d6-53e5-429b-8f7c-1e169b58b870" />
+
+&nbsp;
+
+2. Descomprimí el ZIP en tu compu.
+3. En tu GitHub tocá **New repository**, ponele un nombre y tocá **Create repository**.
+4. Dentro del repo nuevo tocá **Add file → Upload files**.
+5. Arrastrá **todo el contenido** de la carpeta descomprimida, incluida la carpeta `.github`.
+6. Tocá **Commit changes**.
+7. Verificá que exista `.github/workflows/monitor.yml` en tu repo. Si no se subió (las carpetas que empiezan con punto a veces quedan ocultas; en Mac usá `Cmd + Shift + .` para verlas), creá el archivo a mano:
+   * **Add file → Create new file**
+   * En el nombre escribí `.github/workflows/monitor.yml` (GitHub arma las carpetas solo)
+   * Pegá el contenido del `monitor.yml` de este repo
+   * **Commit changes**
+
+---
+
+## ⚙️ Configuración (para las dos opciones)
+
+1. **Creá tu bot de Telegram:** hablá con [@BotFather](https://t.me/BotFather), enviá `/newbot`, elegí un nombre y guardá el **token** que te da.
+2. **Obtené tu chat ID:** escribile cualquier mensaje a tu bot. Después abrí en el navegador esta dirección, reemplazando `<TU_TOKEN>` por tu token:
+   `https://api.telegram.org/bot<TU_TOKEN>/getUpdates`
+   Buscá `"chat":{"id": ...}` y copiá ese número.
+3. **Cargá tus secretos** en tu repo: **Settings → Secrets and variables → Actions → New repository secret**. Creá estos dos:
+   * `TELEGRAM_TOKEN`: el token del paso 1
+   * `TELEGRAM_CHAT_ID`: el número del paso 2
+4. **Personalizá tu búsqueda** (ver sección siguiente).
+5. **Activá Actions:** pestaña **Actions** → botón verde "I understand my workflows, go ahead and enable them" → elegí **Monitor de empleos** → **Run workflow** para probarlo.
+
+Desde ese momento corre solo, cada hora.
 
 > 💡 La primera vez puede llegarte una tanda de avisos (hasta 10 por empresa) con los puestos que ya estaban publicados. Después solo llegan los nuevos.
 
@@ -33,11 +64,11 @@ Desde ese momento corre solo cada hora.
 
 ## 🎛️ Personalizá tu búsqueda
 
-No hace falta tocar el código. Editá estos archivos desde GitHub (lápiz ✏️ → *Commit changes*) y se aplican en la próxima corrida:
+No hace falta tocar el código. Editá estos archivos desde GitHub (lápiz ✏️ → **Commit changes**) y se aplican en la próxima corrida:
 
 | Archivo | Para qué sirve | Ejemplo |
 |---|---|---|
-| `empresas.txt` | Páginas de empleo a revisar, una por línea | `Mi Empresa \| https://boards.greenhouse.io/miempresa` |
+| `empresas.txt` | Páginas de empleo a revisar, una por línea con el formato `Nombre \| link` | `Mi Empresa \| https://boards.greenhouse.io/miempresa` |
 | `palabras_clave.txt` | Palabras que tiene que tener el título del puesto | `soporte` |
 | `excluir.txt` | Palabras que descartan un puesto | `senior` |
 
@@ -59,7 +90,7 @@ neko-jobs/
 ├── empresas.txt              <- Páginas de empleo a monitorear
 ├── palabras_clave.txt        <- Puestos que querés recibir
 ├── excluir.txt               <- Palabras a descartar
-└── estado.json               <- Memoria de puestos ya notificados
+└── estado.json               <- Memoria de puestos ya avisados (se crea sola)
 ```
 
 ---
@@ -82,11 +113,13 @@ Podés crear un canal público de Telegram, agregar tu bot como administrador co
 
 El bot puede avisarte también por WhatsApp, a tu propio número, con [CallMeBot](https://www.callmebot.com) (servicio gratuito y no oficial).
 
-1. Agendá el número de CallMeBot (lo encontrás en su página) y mandale: `I allow callmebot to send me messages`.
+1. Agendá el número de CallMeBot (lo encontrás en su página) y mandale este mensaje: `I allow callmebot to send me messages`.
 2. Te responde con una clave (apikey).
-3. En tu repo creá dos secretos: `WHATSAPP_PHONE` (tu número con código de país, sin espacios, ej: `+5491112345678`) y `CALLMEBOT_APIKEY` (la clave recibida).
+3. En tu repo creá dos secretos más (**Settings → Secrets and variables → Actions**):
+   * `WHATSAPP_PHONE`: tu número con código de país, sin espacios (ej: `+5491112345678`)
+   * `CALLMEBOT_APIKEY`: la clave que recibiste
 
-Los mensajes pueden demorar unos minutos. Cada persona necesita su propia clave.
+El workflow ya está preparado para usarlos. Los mensajes pueden demorar unos minutos y cada persona necesita su propia clave.
 
 ---
 
@@ -96,22 +129,25 @@ Los mensajes pueden demorar unos minutos. Cada persona necesita su propia clave.
 * El lector genérico para páginas propias es básico y puede necesitar ajustes.
 * El filtro mira solo el **título** del puesto, no la descripción completa.
 * No filtra por país ni idioma: eso depende de las empresas y de las palabras que elijas.
-* GitHub pausa los workflows programados si el repo pasa 60 días sin actividad. Si dejás de recibir avisos, entrá a *Actions* y reactivalo.
+* GitHub pausa los workflows programados si el repo pasa 60 días sin actividad. Si dejás de recibir avisos, entrá a **Actions** y reactivalo.
 
 ---
 
 ## 🔒 Buenas prácticas
 
-* Nunca escribas tu token en el código: usá siempre *Secrets*.
+* Nunca escribas tu token en el código: usá siempre **Secrets**.
 * El bot solo lee páginas públicas de empleo. Confirmá siempre los datos en la página de la empresa antes de postularte.
 
 ---
 
+
 ¿Te sirvió? Dejale una ⭐ al repo.
+
+---
 
 ## 📄 Licencia
 
-MIT
+Distribuido bajo licencia MIT. Ver el archivo `LICENSE`.
 
 👩‍💻 Autora
 
