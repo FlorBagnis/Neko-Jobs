@@ -59,6 +59,19 @@ El analizador genérico cuenta con una lógica básica.
 
 El filtrado opera estrictamente sobre el título del puesto y no sobre el cuerpo completo de la descripción.
 
+## Avisos por WhatsApp (opcional)
+
+El bot puede avisarte también por WhatsApp, a tu propio número, usando CallMeBot (servicio gratuito y no oficial).
+
+1. Agendá el número de CallMeBot (lo encontrás en callmebot.com) y mandale: `I allow callmebot to send me messages`.
+2. Te responde con una clave (apikey).
+3. En tu repo: Settings → Secrets and variables → Actions, creá dos secretos:
+   - `WHATSAPP_PHONE`: tu número con código de país, sin espacios (ej: `+5491112345678`)
+   - `CALLMEBOT_APIKEY`: la clave que recibiste
+4. Asegurate de que tu workflow pase esos dos secretos en `env:`.
+
+Los mensajes pueden demorar unos minutos. Cada persona necesita su propia clave.
+
 
 👩‍💻 Autora
 
