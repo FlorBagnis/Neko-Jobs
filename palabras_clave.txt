@@ -1,0 +1,31 @@
+# Te avisa si el TÍTULO del puesto contiene alguna de estas palabras
+# (no importan tildes ni mayúsculas). Editala con los puestos que busques.
+
+# Soporte y atención
+soporte
+support
+customer care
+customer service
+customer experience
+cx
+atencion al cliente
+servicio al cliente
+
+# Éxito del cliente y onboarding
+customer success
+implementation
+onboarding
+integraciones
+
+# Pagos y operaciones
+contracargo
+chargeback
+disputa
+conciliacion
+payments
+pagos
+merchant
+kyc
+
+# Herramientas
+zendesk

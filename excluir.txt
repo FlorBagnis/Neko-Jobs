@@ -1,0 +1,51 @@
+# Si el título (o el nombre de la empresa) contiene alguna de estas palabras, NO te avisa.
+
+# Áreas que no son soporte
+ventas
+sales
+sdr
+bdr
+account executive
+marketing
+growth
+recruiter
+talent
+people
+recursos humanos
+legal
+contable
+accounting
+payroll
+cobranza
+collections
+telemarketing
+outbound
+
+# Desarrollo y sistemas
+developer
+desarrollador
+software engineer
+devops
+sre
+data scientist
+
+# Soporte de IT interno (hardware, redes, oficina)
+it support
+soporte it
+microinformatica
+hardware
+field service
+
+# Nivel más alto
+director
+head of
+gerente
+vice president
+team lead
+jefe
+
+# Idiomas (agregá los que no manejes)
+german
+french
+italian
+japanese

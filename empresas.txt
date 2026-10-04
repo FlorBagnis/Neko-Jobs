@@ -1,0 +1,9 @@
+# Ejemplo. Una empresa por línea, con este formato:   Nombre | link a su página de empleos
+# Las líneas que empiezan con # se ignoran. Sacales el # y poné links reales.
+# Funciona mejor con páginas de Greenhouse, Lever, Ashby, Workable o Selenios.
+
+# Empresa Uno | https://jobs.lever.co/nombre-de-la-empresa
+# Empresa Dos | https://boards.greenhouse.io/nombre-de-la-empresa
+# Empresa Tres | https://apply.workable.com/nombre-de-la-empresa
+# Empresa Cuatro | https://jobs.ashbyhq.com/nombre-de-la-empresa
+# Empresa Cinco | https://applicants.selenios.com/c/nombre-de-la-empresa
