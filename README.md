@@ -1,5 +1,5 @@
-# 🐾 neko-jobs · Monitor de ofertas laborales
-
+# 🐾 Neko-Jobs · Monitor de ofertas laborales
+ 
 Un bot gratuito que revisa cada hora las páginas de empleo de empresas tech y SaaS, filtra los puestos según tus palabras clave y te avisa por Telegram cuando aparece uno nuevo. Corre solo en GitHub Actions: no necesitás servidor ni saber programar.
 
 ---
@@ -8,9 +8,10 @@ Un bot gratuito que revisa cada hora las páginas de empleo de empresas tech y S
 
 * 🤖 **Se ejecuta solo:** GitHub Actions lo corre cada hora, sin que tengas la compu prendida.
 * 🎯 **Filtra por título:** te avisa solo de los puestos que coinciden con tus palabras clave (soporte técnico, Customer Experience, Customer Success, etc.) y descarta los que pongas en la lista de exclusión.
+* 🇦🇷 **Filtra por ubicación:** por defecto solo avisa de puestos de Argentina o LATAM. Se puede cambiar.
+* 🇪🇸 **Filtra por idioma:** solo avisa de puestos cuya descripción está en español.
 * 💬 **Avisa por Telegram** (y opcionalmente por WhatsApp): recibís el título, el lugar y el link de cada puesto nuevo.
 * 🛡️ **Sin repetidos:** recuerda los puestos que ya te avisó. Si falla el envío, reintenta en la próxima corrida.
-
 ---
 
 ## 🚀 Cómo usarlo
@@ -45,37 +46,37 @@ Elegí **una** de las dos opciones para tener tu copia del proyecto. Después se
 ---
 
 ## ⚙️ Configuración (para las dos opciones)
-
+ 
 1. **Creá tu bot de Telegram:** hablá con [@BotFather](https://t.me/BotFather), enviá `/newbot`, elegí un nombre y guardá el **token** que te da.
 2. **Obtené tu chat ID:** escribile cualquier mensaje a tu bot. Después abrí en el navegador esta dirección, reemplazando `<TU_TOKEN>` por tu token:
    `https://api.telegram.org/bot<TU_TOKEN>/getUpdates`
    Buscá `"chat":{"id": ...}` y copiá ese número.
-3. **Cargá tus secretos** en tu repo: **Settings → Secrets and variables → Actions → New repository secret**. Creá estos dos:
+3. **Cargá tus secretos** en tu repo: **Settings → Secrets and variables → Actions → New repository secret**. Creá estos dos, con **exactamente** estos nombres:
    * `TELEGRAM_TOKEN`: el token del paso 1
    * `TELEGRAM_CHAT_ID`: el número del paso 2
-4. **Personalizá tu búsqueda** (ver sección siguiente).
-5. **Activá Actions:** pestaña **Actions** → botón verde "I understand my workflows, go ahead and enable them" → elegí **Monitor de empleos** → **Run workflow** para probarlo.
-
+4. **Revisá `estado.json`:** tiene que contener solamente `{}`. Es la memoria del bot y, si trae contenido, no te avisa de esos puestos.
+5. **Personalizá tu búsqueda** (ver sección siguiente).
+6. **Activá Actions:** pestaña **Actions** → botón verde "I understand my workflows, go ahead and enable them". Si ves **Monitor de empleos** como deshabilitado, tocá **Enable workflow**.
+7. **Probalo:** **Actions → Monitor de empleos → Run workflow**. Tendría que llegarte un aviso a Telegram.
 Desde ese momento corre solo, cada hora.
-
+ 
 > 💡 La primera vez puede llegarte una tanda de avisos (hasta 10 por empresa) con los puestos que ya estaban publicados. Después solo llegan los nuevos.
-
+ 
 ---
 
 ## 🎛️ Personalizá tu búsqueda
 
 No hace falta tocar el código. Editá estos archivos desde GitHub (lápiz ✏️ → **Commit changes**) y se aplican en la próxima corrida:
-
+ 
 | Archivo | Para qué sirve | Ejemplo |
 |---|---|---|
-| `empresas.txt` | Páginas de empleo a revisar, una por línea con el formato `Nombre \| link` | `Mi Empresa \| https://boards.greenhouse.io/miempresa` |
+| `empresas.txt` | Páginas de empleo a revisar, una por línea: `Nombre \| link`. Si la empresa es argentina, agregá `\| AR` al final | `Mi Empresa \| https://jobs.lever.co/miempresa \| AR` |
 | `palabras_clave.txt` | Palabras que tiene que tener el título del puesto | `soporte` |
 | `excluir.txt` | Palabras que descartan un puesto | `senior` |
-
-Funciona con páginas de **Greenhouse, Lever, Ashby, Workable y Selenios**. También prueba con páginas propias de cada empresa, pero ahí puede fallar si cargan con JavaScript.
-
+| `ubicaciones_permitidas.txt` (opcional) | Lugares que sí querés recibir, uno por línea. Si lo creás, reemplaza la lista por defecto (Argentina y LATAM) | `argentina` |
+| `ubicaciones_bloqueadas.txt` (opcional) | Lugares que querés descartar, uno por línea. Si lo creás, reemplaza la lista por defecto | `mexico` |
+ 
 Las palabras no distinguen mayúsculas ni tildes: "atención" encuentra "Atencion".
-
 ---
 
 ## 🗄️ Estructura del proyecto
