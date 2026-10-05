@@ -4,6 +4,13 @@ Un bot gratuito que revisa cada hora las páginas de empleo de empresas tech y S
 
 ---
 
+
+## 🚧 Bot compartido: próximamente
+
+Estoy trabajando en un **bot compartido** para que cualquier persona pueda usar Neko Jobs directamente desde Telegram, sin instalar nada ni saber programar. Todavía está en preparación. Cuando esté listo, voy a publicar el link acá.
+
+Mientras tanto, si querés tener tu propio bot, podés copiar este repo (fork) y seguir los pasos de abajo.
+
 ## ✨ Qué hace
 
 * 🤖 **Se ejecuta solo:** GitHub Actions lo corre cada hora, sin que tengas la compu prendida.
