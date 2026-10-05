@@ -201,6 +201,7 @@ El workflow ya está preparado para usarlos. Los mensajes pueden demorar unos mi
 * Por defecto solo avisa de puestos de **Argentina o LATAM**, según el título y la ubicación del aviso. Se puede cambiar con `ubicaciones_permitidas.txt` y `ubicaciones_bloqueadas.txt`.
 * Solo avisa de puestos con la descripción en **español**. Si no puede leer el texto, avisa igual con un ⚠️. Este filtro no se cambia desde un archivo: para otros idiomas hay que editar `monitor.py`.
 * El filtro de palabras clave mira solo el **título** del puesto.
+* **No funciona con portales de empleo como LinkedIn, Bumeran o Computrabajo.** Esos sitios bloquean el acceso automático, así que sus links no se pueden cargar en `empresas.txt`. El bot lee las páginas de empleo propias de cada empresa, que son públicas.
 * Las páginas que cargan todo con JavaScript pueden no leerse bien.
 * El lector genérico para páginas propias es básico y puede necesitar ajustes.
 * GitHub pausa los workflows programados si el repo pasa 60 días sin actividad.
