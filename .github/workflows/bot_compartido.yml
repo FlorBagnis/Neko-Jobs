@@ -1,0 +1,37 @@
+name: Neko Jobs compartido
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # cada ~10 min contesta mensajes; busca ofertas ~1 vez por hora
+  workflow_dispatch:          # para probarlo a mano desde Actions
+
+concurrency:
+  group: neko-jobs-compartido
+  cancel-in-progress: false   # nunca dos corridas a la vez
+
+permissions:
+  contents: read
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar librerías
+        run: |
+          pip install -r requirements.txt
+          pip install firebase-admin
+
+      - name: Correr el bot compartido
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+        run: python bot_compartido.py
