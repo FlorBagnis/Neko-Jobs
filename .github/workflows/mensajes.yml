@@ -1,0 +1,25 @@
+name: Neko Jobs - mensajes
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: neko-jobs
+  cancel-in-progress: false
+
+jobs:
+  correr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python bot_compartido.py mensajes
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
