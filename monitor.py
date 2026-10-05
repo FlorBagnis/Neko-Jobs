@@ -4,10 +4,12 @@ Monitor de ofertas de empleo.
 
 Revisa las páginas de empleo listadas en empresas.txt, detecta puestos NUEVOS
 que coincidan con palabras_clave.txt (y no con excluir.txt) y avisa por Telegram.
+SOLO avisa de puestos cuyo texto (descripción) está en español.
 
 Uso local:   python monitor.py
 En GitHub:   lo ejecuta .github/workflows/monitor.yml cada hora.
 """
+import html
 import json
 import os
 import re
@@ -56,6 +58,92 @@ def compilar(palabras):
     return [re.compile(r"\b" + re.escape(normalizar(p))) for p in palabras]
 
 
+# ------------------------------------------- filtro de idioma (texto del aviso)
+# Palabras muy frecuentes que NO existen en el otro idioma (sin tildes).
+PALABRAS_ES = {
+    "de", "la", "el", "en", "y", "que", "los", "las", "con", "para", "por", "una",
+    "del", "se", "al", "su", "sus", "nuestro", "nuestra", "nuestros", "tu", "tus",
+    "sobre", "como", "mas", "experiencia", "equipo", "trabajo", "buscamos",
+    "requisitos", "responsabilidades", "empresa", "cliente", "clientes",
+}
+PALABRAS_EN = {
+    "the", "and", "of", "to", "in", "for", "with", "you", "your", "our", "we",
+    "will", "is", "are", "on", "as", "be", "that", "this", "from", "have", "or",
+    "experience", "team", "work", "about", "requirements", "responsibilities",
+    "company", "customers", "looking",
+}
+
+
+def limpiar_html(h):
+    return BeautifulSoup(html.unescape(h or ""), "html.parser").get_text(" ", strip=True)
+
+
+def idioma_del_texto(texto):
+    """'es', 'en', o None si no hay texto suficiente para saberlo."""
+    palabras = re.findall(r"[a-z]+", normalizar(texto))
+    if len(palabras) < 40:
+        return None
+    es = sum(1 for w in palabras if w in PALABRAS_ES)
+    en = sum(1 for w in palabras if w in PALABRAS_EN)
+    return "es" if es > en else "en"
+
+
+def texto_del_puesto(p):
+    """Devuelve el texto del aviso (descripción). Vacío si no se pudo leer."""
+    if p.get("texto"):
+        return p["texto"]
+    try:
+        if p.get("json_url"):
+            d = get_json(p["json_url"])
+            partes = [d.get("description"), d.get("requirements"), d.get("benefits")]
+            return limpiar_html(" ".join(x for x in partes if x))
+        r = requests.get(p["url"], headers=HEADERS, timeout=TIMEOUT)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+        for t in soup(["script", "style", "nav", "header", "footer"]):
+            t.decompose()
+        return soup.get_text(" ", strip=True)
+    except Exception:
+        return ""
+
+
+# Ubicaciones. Se pueden cambiar creando ubicaciones_permitidas.txt y/o
+# ubicaciones_bloqueadas.txt (una por línea); si esos archivos existen, reemplazan estas listas.
+UBICACIONES_PERMITIDAS = [
+    "argentina", "buenos aires", "caba", "capital federal", "gba",
+    "cordoba", "rosario", "mendoza", "la plata", "tucuman", "santa fe",
+    "mar del plata", "neuquen", "salta", "palermo",
+    "latam", "latin america", "latinoamerica", "america latina",
+    "south america", "sudamerica",
+]
+UBICACIONES_BLOQUEADAS = [
+    "mexico", "cdmx", "ciudad de mexico", "brazil", "brasil", "sao paulo",
+    "colombia", "bogota", "medellin", "chile", "peru", "uruguay", "montevideo",
+    "ecuador", "venezuela", "bolivia", "paraguay", "costa rica", "panama",
+    "guatemala", "dominican republic", "puerto rico", "spain", "espana", "madrid",
+    "barcelona", "portugal", "united states", "usa", "us", "estados unidos", "eeuu",
+    "canada", "north america", "europe", "emea", "apac", "uk", "united kingdom",
+    "london", "germany", "india", "philippines", "poland", "israel",
+]
+
+
+def compilar_exacto(palabras):
+    """Como compilar(), pero la palabra tiene que estar completa ('us' no matchea 'usuario')."""
+    return [re.compile(r"\b" + re.escape(normalizar(p)) + r"\b") for p in palabras]
+
+
+def ubicacion_ok(titulo, lugar, permitidas, bloqueadas, empresa_ar=False):
+    """Solo Argentina. True si el título/lugar nombra Argentina (o una ciudad argentina).
+    Si no dice nada de ubicación, solo pasa cuando la empresa está marcada como argentina
+    (tercer campo AR en empresas.txt) y no menciona otro país."""
+    texto = normalizar(f"{titulo} {lugar}")
+    if any(p.search(texto) for p in permitidas):
+        return True
+    if any(p.search(texto) for p in bloqueadas):
+        return False
+    return empresa_ar
+
+
 def coincide(titulo, empresa, incluir, excluir):
     t = normalizar(titulo)
     if not any(p.search(t) for p in incluir):
@@ -69,11 +157,13 @@ def cargar_empresas():
     for linea in leer_lista("empresas.txt"):
         if "|" not in linea:
             continue
-        nombre, url = [x.strip() for x in linea.split("|", 1)]
+        partes = [x.strip() for x in linea.split("|")]
+        nombre, url = partes[0], partes[1]
+        es_ar = len(partes) > 2 and partes[2].upper() == "AR"
         if not url.startswith("http"):
             print(f"[aviso] {nombre}: todavía no tiene link, la salto")
             continue
-        empresas.append((nombre, url))
+        empresas.append((nombre, url, es_ar))
     return empresas
 
 
@@ -90,13 +180,14 @@ def get_json(url):
 
 # ------------------------------------------------- lectores por tipo de página
 def buscar_greenhouse(url):
-    data = get_json(f"https://boards-api.greenhouse.io/v1/boards/{slug(url)}/jobs")
+    data = get_json(f"https://boards-api.greenhouse.io/v1/boards/{slug(url)}/jobs?content=true")
     return [
         {
             "id": str(j["id"]),
             "titulo": j["title"],
             "url": j["absolute_url"],
             "lugar": (j.get("location") or {}).get("name", ""),
+            "texto": limpiar_html(j.get("content", "")),
         }
         for j in data.get("jobs", [])
     ]
@@ -111,6 +202,7 @@ def buscar_lever(url):
             "titulo": j["text"],
             "url": j["hostedUrl"],
             "lugar": (j.get("categories") or {}).get("location", ""),
+            "texto": (j.get("descriptionPlain") or "") + " " + (j.get("additionalPlain") or ""),
         }
         for j in data
     ]
@@ -124,6 +216,7 @@ def buscar_ashby(url):
             "titulo": j["title"],
             "url": j.get("jobUrl", url),
             "lugar": j.get("location", ""),
+            "texto": j.get("descriptionPlain") or limpiar_html(j.get("descriptionHtml", "")),
         }
         for j in data.get("jobs", [])
     ]
@@ -147,6 +240,7 @@ def buscar_workable(url):
                 "titulo": j["title"],
                 "url": f"https://apply.workable.com/{cuenta}/j/{j['shortcode']}/",
                 "lugar": ", ".join(x for x in [loc.get("city"), loc.get("country")] if x),
+                "json_url": f"https://apply.workable.com/api/v2/accounts/{cuenta}/jobs/{j['shortcode']}",
             }
         )
     return puestos
@@ -261,7 +355,8 @@ def armar_mensaje(nombre, nuevos):
     lineas = [f"🔔 {nombre}: {len(nuevos)} puesto(s) nuevo(s)", ""]
     for p in nuevos:
         lugar = f" ({p['lugar']})" if p["lugar"] else ""
-        lineas.append(f"• {p['titulo']}{lugar}\n  {p['url']}")
+        marca = "\n  ⚠️ no pude verificar el idioma del aviso" if p.get("sin_verificar") else ""
+        lineas.append(f"• {p['titulo']}{lugar}\n  {p['url']}{marca}")
     return "\n".join(lineas)
 
 
@@ -274,9 +369,11 @@ def main():
 
     incluir = compilar(leer_lista("palabras_clave.txt"))
     excluir = compilar(leer_lista("excluir.txt"))
+    permitidas = compilar_exacto(leer_lista("ubicaciones_permitidas.txt") or UBICACIONES_PERMITIDAS)
+    bloqueadas = compilar_exacto(leer_lista("ubicaciones_bloqueadas.txt") or UBICACIONES_BLOQUEADAS)
     estado = json.loads(STATE_FILE.read_text("utf-8")) if STATE_FILE.exists() else {}
 
-    for nombre, url in empresas:
+    for nombre, url, es_ar in empresas:
         try:
             puestos = elegir_lector(url)(url)
         except Exception as e:  # una empresa que falla no frena a las demás
@@ -290,10 +387,33 @@ def main():
 
         vistos = set(estado.get(url, []))
         primera_vez = url not in estado
+        sin_ver = [p for p in puestos if p["id"] not in vistos]
+        con_clave = [p for p in sin_ver if coincide(p["titulo"], nombre, incluir, excluir)]
         nuevos = [
-            p for p in puestos
-            if p["id"] not in vistos and coincide(p["titulo"], nombre, incluir, excluir)
+            p for p in con_clave
+            if ubicacion_ok(p["titulo"], p["lugar"], permitidas, bloqueadas, es_ar)
         ]
+        print(f"     sin ver antes: {len(sin_ver)} | con tus palabras clave: {len(con_clave)} "
+              f"| en Argentina/LATAM: {len(nuevos)}")
+        if sin_ver and not con_clave:
+            print("     ejemplos de títulos leídos: " + " / ".join(p["titulo"] for p in sin_ver[:5]))
+        if con_clave and not nuevos:
+            print("     ejemplos de ubicaciones: " + " / ".join(
+                f"{p['titulo']} [{p['lugar'] or 'sin ubicación'}]" for p in con_clave[:5]))
+        # idioma del cuerpo del aviso: solo pasan los que están en español
+        en_espanol, descartados_en = [], 0
+        for p in nuevos:
+            idioma = idioma_del_texto(texto_del_puesto(p))
+            if idioma == "es":
+                en_espanol.append(p)
+            elif idioma is None:  # no se pudo leer: se avisa, pero marcado
+                p["sin_verificar"] = True
+                en_espanol.append(p)
+            else:
+                descartados_en += 1
+        nuevos = en_espanol
+        if descartados_en:
+            print(f"     ({descartados_en} descartados por estar en inglés)")
         if primera_vez:
             nuevos = nuevos[:MAX_PRIMERA_VEZ]
 
