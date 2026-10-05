@@ -4,9 +4,9 @@ Neko Jobs compartido: UN solo bot de Telegram para muchas personas.
 
 - Cada persona se configura chateando con el bot (/start, /agregar, /quitar...).
 - Los filtros de cada una se guardan en Firebase (Firestore).
-- En cada corrida: 1) contesta los mensajes nuevos, 2) busca ofertas (como
-  máximo una vez por hora) y le manda a cada persona solo lo que coincide con
-  SUS filtros.
+- Modo "mensajes": solo contesta los mensajes nuevos (rápido).
+- Modo "buscar": contesta los mensajes y busca ofertas, y le manda a cada
+  persona solo lo que coincide con SUS filtros.
 
 Reutiliza los lectores y filtros de monitor.py, que sigue funcionando igual
 para quien lo use con su propio bot.
@@ -37,7 +37,7 @@ ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "").strip()
 MAX_INICIAL = 15               # avisos como máximo la primera vez (o al cambiar filtros)
 MAX_PALABRAS = 30              # palabras clave / exclusiones por persona
 MAX_AVISADOS = 3000            # puestos que se recuerdan por persona
-MINUTOS_ENTRE_BUSQUEDAS = 55   # el bot corre seguido para contestar, pero busca ~1 vez por hora
+MINUTOS_ENTRE_BUSQUEDAS = 55   # (ya no se usa para decidir: el modo lo define el workflow)
 
 BIENVENIDA = (
     "¡Hola! 🐾 Soy Neko Jobs. Reviso cada hora las páginas de empleo de empresas tech "
@@ -413,27 +413,30 @@ def resumen_diario(db):
 # ---------------------------------------------------------------------- main
 
 def main():
+    # modo "mensajes": solo contesta mensajes (rápido)
+    # modo "buscar":   contesta mensajes y busca ofertas siempre
+    modo = sys.argv[1] if len(sys.argv) > 1 else "buscar"
     if not BOT_TOKEN or not os.environ.get("FIREBASE_SERVICE_ACCOUNT"):
         print("Faltan los secrets BOT_TOKEN y/o FIREBASE_SERVICE_ACCOUNT")
         return 1
     db = conectar()
     atendidos = procesar_mensajes(db)
 
+    if modo == "mensajes":
+        print(f"[ok] mensajes atendidos: {atendidos}")
+        return 0
+
     meta = db.collection("meta").document("estado")
-    ahora = time.time()
-    buscar = ahora - (meta.get().to_dict() or {}).get("ultima_busqueda", 0) >= MINUTOS_ENTRE_BUSQUEDAS * 60
-    estadisticas = {"enviados": 0, "errores": 0}
-    if buscar:
-        meta.set({"ultima_busqueda": ahora}, merge=True)
-        estadisticas = buscar_y_avisar(db)
-        meta.set({
-            "avisos_desde_resumen": firestore.Increment(estadisticas["enviados"]),
-            "errores_desde_resumen": firestore.Increment(estadisticas["errores"]),
-        }, merge=True)
+    meta.set({"ultima_busqueda": time.time()}, merge=True)
+    estadisticas = buscar_y_avisar(db)
+    meta.set({
+        "avisos_desde_resumen": firestore.Increment(estadisticas["enviados"]),
+        "errores_desde_resumen": firestore.Increment(estadisticas["errores"]),
+    }, merge=True)
 
     resumen_diario(db)
-    print(f"[ok] mensajes atendidos: {atendidos} | búsqueda: {'sí' if buscar else 'no'} | "
-          f"avisos enviados: {estadisticas['enviados']} | errores: {estadisticas['errores']}")
+    print(f"[ok] mensajes atendidos: {atendidos} | avisos enviados: "
+          f"{estadisticas['enviados']} | errores: {estadisticas['errores']}")
     return 0
 
 
