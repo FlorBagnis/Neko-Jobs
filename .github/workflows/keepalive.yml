@@ -1,7 +1,7 @@
 name: Neko Jobs - keepalive
 on:
   schedule:
-    - cron: "17 12 1,15 * *"   # días 1 y 15 de cada mes
+    - cron: "17 12 1,15 * *"
   workflow_dispatch:
 
 permissions:
@@ -10,12 +10,14 @@ permissions:
 jobs:
   mantener:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Reactivar workflows
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PROMPT_DISABLED: "1"
           REPO: ${{ github.repository }}
         run: |
           gh workflow enable mensajes.yml --repo "$REPO"
           gh workflow enable avisos.yml --repo "$REPO"
-          gh workflow enable keepalive.yml --repo "$REPO"
+          echo "listo"
