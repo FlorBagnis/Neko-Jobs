@@ -71,6 +71,50 @@ Desde ese momento corre solo, cada hora.
  
 ---
 
+## 💓 Que no se apague solo (keepalive)
+
+GitHub desactiva automáticamente los workflows programados cuando un repo pasa **60 días sin actividad**. Para evitarlo, este proyecto incluye un workflow llamado **keepalive** que los días 1 y 15 de cada mes vuelve a activar los otros workflows, así el bot sigue funcionando sin que tengas que hacer nada.
+
+```
+ 
+Crealo en tu repo con **Add file → Create new file**, con el nombre `.github/workflows/keepalive.yml` (escribilo a mano y sin espacios) y este contenido:
+
+​yaml
+
+name: Neko Jobs - keepalive
+on:
+  schedule:
+    - cron: "17 12 1,15 * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  mantener:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reactivar workflows
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PROMPT_DISABLED: "1"
+          REPO: ${{ github.repository }}
+        run: |
+          gh workflow enable mensajes.yml --repo "$REPO"
+          gh workflow enable avisos.yml --repo "$REPO"
+          echo "listo"
+
+
+Probalo con **Actions → Neko Jobs - keepalive → Run workflow**. Si termina en verde ✅, quedó andando.
+
+
+```
+**Notas:**
+- Los nombres `mensajes.yml` y `avisos.yml` tienen que coincidir con los de tus workflows. Si usás otros nombres, cambialos en las dos líneas de `gh workflow enable`.
+- Si tu bot usa solo un workflow (por ejemplo, el de `monitor.py`), dejá únicamente esa línea.
+- En un fork, GitHub deja los workflows desactivados: tenés que activarlos a mano la primera vez desde la pestaña **Actions**.
+
 ## 🎛️ Personalizá tu búsqueda
  
 No hace falta tocar el código. Editá estos archivos desde GitHub (lápiz ✏️ → **Commit changes**) y se aplican en la próxima corrida:
