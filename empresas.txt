@@ -8,9 +8,9 @@
 # ============================================================
 
 # --- Mi lista (ejemplo, reemplazala por la tuya) ---
-Tapi | https://applicants.selenios.com/c/tapi | AR
+# Tapi | https://applicants.selenios.com/c/tapi | AR
 Yuno | https://jobs.lever.co/yuno
-Ualá | https://www.uala.com.ar/sumate | AR
+# Ualá | https://www.uala.com.ar/sumate | AR
 Get on Board | https://www.getonbrd.com/jobs/customer-support
 Humand | https://careers.humand.co/jobs | AR
 Lemon | https://work.lemon.me/jobs | AR
