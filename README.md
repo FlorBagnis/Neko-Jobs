@@ -125,10 +125,11 @@ El workflow ya está preparado para usarlos. Los mensajes pueden demorar unos mi
 
 ## ⚠️ Limitaciones conocidas
 
+* Solo avisa de puestos de **Argentina o LATAM**, según el título y la ubicación del aviso. Si no dice dónde es, solo pasa cuando marcaste la empresa con `| AR`.
+* Solo avisa de puestos con la descripción en **español**. Si no puede leer el texto, avisa igual con un ⚠️. Este filtro no se cambia desde un archivo: para otros idiomas hay que editar `monitor.py`.
+* El filtro de palabras clave mira solo el **título** del puesto.
 * Las páginas que cargan todo con JavaScript pueden no leerse bien.
 * El lector genérico para páginas propias es básico y puede necesitar ajustes.
-* El filtro mira solo el **título** del puesto, no la descripción completa.
-* No filtra por país ni idioma: eso depende de las empresas y de las palabras que elijas.
 * GitHub pausa los workflows programados si el repo pasa 60 días sin actividad. Si dejás de recibir avisos, entrá a **Actions** y reactivalo.
 
 ---
