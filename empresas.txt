@@ -1,9 +1,26 @@
-# Ejemplo. Una empresa por línea, con este formato:   Nombre | link a su página de empleos
-# Las líneas que empiezan con # se ignoran. Sacales el # y poné links reales.
-# Funciona mejor con páginas de Greenhouse, Lever, Ashby, Workable o Selenios.
+# ============================================================
+# EMPRESAS A MONITOREAR
+# Una empresa por línea:  Nombre | link a su página de empleos
+# Si es una empresa argentina, agregá  | AR  al final.
+# Las líneas que empiezan con # se ignoran.
+# Funcionan mejor los links de Greenhouse, Lever, Ashby,
+# Workable y Selenios. Las páginas propias pueden fallar.
+# ============================================================
 
-# Empresa Uno | https://jobs.lever.co/nombre-de-la-empresa
-# Empresa Dos | https://boards.greenhouse.io/nombre-de-la-empresa
-# Empresa Tres | https://apply.workable.com/nombre-de-la-empresa
-# Empresa Cuatro | https://jobs.ashbyhq.com/nombre-de-la-empresa
-# Empresa Cinco | https://applicants.selenios.com/c/nombre-de-la-empresa
+# --- Mi lista (ejemplo, reemplazala por la tuya) ---
+Tapi | https://applicants.selenios.com/c/tapi | AR
+Yuno | https://jobs.lever.co/yuno
+Ualá | https://www.uala.com.ar/sumate | AR
+Get on Board | https://www.getonbrd.com/jobs/customer-support
+Humand | https://careers.humand.co/jobs | AR
+Lemon | https://work.lemon.me/jobs | AR
+Belo | https://work.belo.app/jobs | AR
+Ripio | https://jobs.ripio.com/jobs | AR
+Naranja X | https://naranjax.na.teamtailor.com/jobs | AR
+
+# --- Formato de ejemplo (sacales el # y poné el nombre real) ---
+# Empresa A | https://boards.greenhouse.io/nombreempresa | AR
+# Empresa B | https://jobs.lever.co/nombreempresa
+# Empresa C | https://jobs.ashbyhq.com/nombreempresa
+# Empresa D | https://apply.workable.com/nombreempresa/
+# Empresa E | https://applicants.selenios.com/c/nombreempresa | AR
