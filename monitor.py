@@ -107,25 +107,6 @@ def texto_del_puesto(p):
         return ""
 
 
-# Ubicaciones. Se pueden cambiar creando ubicaciones_permitidas.txt y/o
-# ubicaciones_bloqueadas.txt (una por línea); si esos archivos existen, reemplazan estas listas.
-UBICACIONES_PERMITIDAS = [
-    "argentina", "buenos aires", "caba", "capital federal", "gba",
-    "cordoba", "rosario", "mendoza", "la plata", "tucuman", "santa fe",
-    "mar del plata", "neuquen", "salta", "palermo",
-    "latam", "latin america", "latinoamerica", "america latina",
-    "south america", "sudamerica",
-]
-UBICACIONES_BLOQUEADAS = [
-    "mexico", "cdmx", "ciudad de mexico", "brazil", "brasil", "sao paulo",
-    "colombia", "bogota", "medellin", "chile", "peru", "uruguay", "montevideo",
-    "ecuador", "venezuela", "bolivia", "paraguay", "costa rica", "panama",
-    "guatemala", "dominican republic", "puerto rico", "spain", "espana", "madrid",
-    "barcelona", "portugal", "united states", "usa", "us", "estados unidos", "eeuu",
-    "canada", "north america", "europe", "emea", "apac", "uk", "united kingdom",
-    "london", "germany", "india", "philippines", "poland", "israel",
-]
-
 
 def compilar_exacto(palabras):
     """Como compilar(), pero la palabra tiene que estar completa ('us' no matchea 'usuario')."""
