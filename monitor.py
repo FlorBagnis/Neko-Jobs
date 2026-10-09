@@ -6,6 +6,7 @@ Revisa las empresas y despacha los puestos según los filtros y país de cada us
 import html
 import json
 import os
+import re
 import sys
 import unicodedata
 from pathlib import Path
@@ -169,7 +170,7 @@ def obtener_token_firebase(sa):
     import base64
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric import padding
-    from cryptography.hazmat.serialization import load_pem_private_key
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
     ahora = int(time.time())
     def b64(b):
@@ -208,7 +209,7 @@ def cargar_usuarios_firestore():
         if not r.ok:
             print(f"[error Firestore] {r.status_code}: {r.text}")
             return []
-        
+
         usuarios = []
         for doc in r.json().get("documents", []):
             fields = doc.get("fields", {})
@@ -216,7 +217,7 @@ def cargar_usuarios_firestore():
             activo = fields.get("activo", {}).get("booleanValue", True)
             if not activo:
                 continue
-            
+
             palabras = [v.get("stringValue", "") for v in fields.get("palabras", {}).get("arrayValue", {}).get("values", [])]
             excluir = [v.get("stringValue", "") for v in fields.get("excluir", {}).get("arrayValue", {}).get("values", [])]
             idioma = fields.get("idioma", {}).get("stringValue", "es")
@@ -252,6 +253,46 @@ def enviar_telegram(chat_id, texto):
         return r.ok
     except Exception:
         return False
+
+
+# ------------------------------- comodines y listas de compatibilidad
+# (usados por bot_compartido.py)
+UBICACIONES_PERMITIDAS = [
+    "argentina", "buenos aires", "caba", "capital federal", "gba",
+    "cordoba", "rosario", "mendoza", "la plata", "tucuman", "santa fe",
+    "mar del plata", "neuquen", "salta", "palermo",
+    "latam", "latin america", "latinoamerica", "america latina",
+    "south america", "sudamerica",
+    # Sumamos los países de LATAM para que pasen sin problema
+    "chile", "colombia", "mexico", "peru", "uruguay", "brasil", "brazil",
+    "ecuador", "venezuela", "bolivia", "paraguay", "costa rica", "panama"
+]
+
+# Ojo: los países de LATAM NO están en esta lista de bloqueo
+UBICACIONES_BLOQUEADAS = [
+    "spain", "espana", "madrid", "barcelona", "portugal",
+    "united states", "usa", "us", "estados unidos", "eeuu",
+    "canada", "north america", "europe", "emea", "apac",
+    "uk", "united kingdom", "london", "germany", "india",
+    "philippines", "poland", "israel",
+]
+
+def compilar_exacto(palabras):
+    return [re.compile(r"\b" + re.escape(normalizar(p)) + r"\b") for p in palabras]
+
+# Alias: bot_compartido.py llama a m.compilar(...)
+compilar = compilar_exacto
+
+def leer_lista(nombre_archivo):
+    ruta = BASE / nombre_archivo
+    if not ruta.exists():
+        return []
+    lineas = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if linea and not linea.startswith("#"):
+            lineas.append(linea)
+    return lineas
 
 
 # ---------------------------------------------------------------------- main
@@ -329,7 +370,7 @@ def main():
             for p in nuevos_usuario:
                 lugar = f" ({p['lugar']})" if p["lugar"] else ""
                 lineas.append(f"• {p['titulo']}{lugar}\n  {p['url']}")
-            
+
             mensaje = "\n".join(lineas)
             enviar_telegram(u["chat_id"], mensaje)
 
@@ -342,42 +383,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-
-# Comodines y listas de compatibilidad para bot_compartido.py
-import re
-
-UBICACIONES_PERMITIDAS = [
-    "argentina", "buenos aires", "caba", "capital federal", "gba",
-    "cordoba", "rosario", "mendoza", "la plata", "tucuman", "santa fe",
-    "mar del plata", "neuquen", "salta", "palermo",
-    "latam", "latin america", "latinoamerica", "america latina",
-    "south america", "sudamerica",
-    # Sumamos los países de LATAM para que pasen sin problema
-    "chile", "colombia", "mexico", "peru", "uruguay", "brasil", "brazil",
-    "ecuador", "venezuela", "bolivia", "paraguay", "costa rica", "panama"
-]
-
-# ¡Ojo acá! Sacamos a todos los países de LATAM de esta lista de bloqueo
-UBICACIONES_BLOQUEADAS = [
-    "spain", "espana", "madrid", "barcelona", "portugal", 
-    "united states", "usa", "us", "estados unidos", "eeuu",
-    "canada", "north america", "europe", "emea", "apac", 
-    "uk", "united kingdom", "london", "germany", "india", 
-    "philippines", "poland", "israel",
-]
-
-def compilar_exacto(palabras):
-    return [re.compile(r"\b" + re.escape(normalizar(p)) + r"\b") for p in palabras]
-
-def leer_lista(nombre_archivo):
-    ruta = BASE / nombre_archivo
-    if not ruta.exists():
-        return []
-    lineas = []
-    for linea in ruta.read_text(encoding="utf-8").splitlines():
-        linea = linea.strip()
-        if linea and not linea.startswith("#"):
-            lineas.append(linea)
-    return lineas
