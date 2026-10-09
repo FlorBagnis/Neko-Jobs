@@ -420,7 +420,7 @@ def main():
         print("Faltan los secrets BOT_TOKEN y/o FIREBASE_SERVICE_ACCOUNT")
         return 1
     db = conectar()
-    atendidos = procesar_mensajes(db)
+    atendidos = 0
 
     if modo == "mensajes":
         print(f"[ok] mensajes atendidos: {atendidos}")
