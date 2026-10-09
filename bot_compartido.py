@@ -58,17 +58,25 @@ def descarta_por_idioma(pref, detectado):
         return detectado == "en"
     return detectado != "en"  # pref == "en": solo inglés
 
-def descarta_por_pais(pais_usuario, titulo, lugar):
+
+def descarta_por_pais(paises_usuario, titulo, lugar):
     """
-    True si el usuario eligió un país específico (ej: 'chile') 
-    y el puesto NO lo menciona en su título o ubicación.
-    Si el usuario dejó el país en blanco (''), pasan todos los de LATAM.
+    True si el usuario eligió países específicos (ej: ['chile', 'argentina']) 
+    y NINGUNO de ellos se menciona en el título o ubicación del puesto.
+    Si la lista está vacía ([]), pasan todos los de LATAM.
     """
-    if not pais_usuario:
+    if not paises_usuario:
         return False  # Quiere todo LATAM abierto
     
     texto_puesto = m.normalizar(f"{titulo} {lugar}")
-    return pais_usuario not in texto_puesto
+    
+    # Recorremos cada país que eligió el usuario
+    for pais in paises_usuario:
+        pais_norm = m.normalizar(pais)
+        if pais_norm and pais_norm in texto_puesto:
+            return False  # ¡Coincidió con al menos uno! No se descarta.
+            
+    return True  # Ninguno de los países elegidos apareció en el puesto -> se descarta.
 
 
 BIENVENIDA = (
@@ -90,6 +98,7 @@ AYUDA = (
     "/quitar soporte → dejar de buscar esa palabra\n"
     "/excluir senior, ventas → descartar puestos con esas palabras\n"
     "/noexcluir senior → volver a permitirlas\n"
+    "/pais argentina, chile → elegir tus países de búsqueda\n"
     "/filtros → ver lo que tenés configurado\n"
     "/pausar → dejar de recibir avisos\n"
     "/reanudar → volver a recibirlos\n"
@@ -204,10 +213,15 @@ def restar(actual, quitar):
 def resumen_filtros(u):
     palabras = u.get("palabras", [])
     excluir = u.get("excluir", [])
+    paises = u.get("pais", [])
+    if isinstance(paises, str):
+        paises = [paises] if paises else []
+    
     estado = "activos ✅" if u.get("activo", True) else "en pausa ⏸️"
     return (
         f"Tus avisos están {estado}\n\n"
         f"🔎 Busco: {', '.join(palabras) if palabras else 'todavía nada (usá /agregar)'}\n"
+        f"🌍 Países: {', '.join(paises) if paises else 'todo LATAM abierto'}\n"
         f"🚫 Descarto: {', '.join(excluir) if excluir else 'nada'}\n"
         f"🌐 Idioma de las ofertas: {IDIOMAS[idioma_de(u)]}"
     )
@@ -295,12 +309,11 @@ def procesar(db, chat_id, nombre, texto):
 
 
 def procesar_mensajes(db):
-    """Lee los mensajes nuevos de Telegram, los contesta y recuerda hasta dónde leyó.
-    (Sin uso mientras el webhook del Worker esté activo: getUpdates no funciona con webhook.)"""
+    """Lee los mensajes nuevos de Telegram, los contesta y recuerda hasta dónde leyó."""
     meta = db.collection("meta").document("telegram")
     offset = (meta.get().to_dict() or {}).get("offset", 0)
     atendidos = 0
-    for _ in range(5):  # hasta 500 mensajes por corrida
+    for _ in range(5):
         r = tg("getUpdates", {
             "offset": offset, "limit": 100, "timeout": 0,
             "allowed_updates": json.dumps(["message"]),
@@ -321,7 +334,7 @@ def procesar_mensajes(db):
             nombre = (msg.get("from") or {}).get("first_name", "")
             try:
                 respuesta = procesar(db, chat["id"], nombre, texto)
-            except Exception as e:  # un mensaje problemático no frena a los demás
+            except Exception as e:
                 print(f"[error comando] {type(e).__name__}: {e}")
                 respuesta = "Uy, algo falló de mi lado 🙈 Probá de nuevo en un rato."
             if respuesta:
@@ -343,12 +356,12 @@ def avisar(db, uid, u, pendientes, descartados):
     avisados = list(u.get("avisados", []))
     inicial = u.get("inicial", False)
 
-    if inicial:  # primera vez / filtros nuevos: tope de avisos, el resto se marca como visto
+    if inicial:
         a_enviar, omitidos = pendientes[:MAX_INICIAL], [c for _, _, c in pendientes[MAX_INICIAL:]]
     else:
         a_enviar, omitidos = pendientes, []
 
-    grupos = {}  # un mensaje por empresa, igual que monitor.py
+    grupos = {}
     for empresa, p, clave in a_enviar:
         grupos.setdefault(empresa, []).append((p, clave))
 
@@ -363,7 +376,7 @@ def avisar(db, uid, u, pendientes, descartados):
             bloqueado = True
             break
         else:
-            errores += 1  # no se marca como visto: se reintenta en la próxima búsqueda
+            errores += 1
 
     if enviados or omitidos or descartados or inicial or bloqueado:
         cambios = {"avisados": (avisados + omitidos + descartados)[-MAX_AVISADOS:]}
@@ -384,7 +397,6 @@ def buscar_y_avisar(db):
         print("No hay personas con avisos activos")
         return estadisticas
 
-    # DIAGNÓSTICO: solo cantidades, nunca IDs ni nombres (el log de un repo público es visible)
     print(f"[info] personas con avisos activos: {len(activos)}")
     por_idioma = {k: sum(1 for u in activos.values() if idioma_de(u) == k) for k in IDIOMAS}
     print(f"[info] idioma elegido: es={por_idioma['es']} en={por_idioma['en']} ambos={por_idioma['ambos']}")
@@ -395,16 +407,16 @@ def buscar_y_avisar(db):
     filtros = {uid: (m.compilar(u["palabras"]), m.compilar(u.get("excluir", [])))
                for uid, u in activos.items()}
     vistos = {uid: set(u.get("avisados", [])) for uid, u in activos.items()}
-    pendientes = {uid: [] for uid in activos}   # (empresa, puesto, clave)
-    descartados = {uid: [] for uid in activos}  # puestos que no son del idioma elegido: se marcan vistos
-    cache_idioma = {}                           # el idioma de cada puesto se lee una sola vez
+    pendientes = {uid: [] for uid in activos}
+    descartados = {uid: [] for uid in activos}
+    cache_idioma = {}
 
     print(f"[info] empresas a revisar: {len(empresas)}")
 
     for nombre, url, es_ar in empresas:
         try:
             puestos = m.elegir_lector(url)(url)
-        except Exception as e:  # una empresa que falla no frena a las demás
+        except Exception as e:
             print(f"[error] {nombre}: {e}")
             estadisticas["errores"] += 1
             continue
@@ -422,13 +434,27 @@ def buscar_y_avisar(db):
               f"{coinciden} coinciden por título")
 
         for uid in activos:
+            u = activos[uid]
             incluir, excluir = filtros[uid]
-            pref = idioma_de(activos[uid])
+            pref = idioma_de(u)
+            
+            # Leemos los países como lista (soporta tanto formato viejo string como array nuevo)
+            paises_bruto = u.get("pais", [])
+            if isinstance(paises_bruto, str):
+                paises_usuario = [paises_bruto] if paises_bruto else []
+            else:
+                paises_usuario = [p.strip().lower() for p in paises_bruto if p]
+
             for p in en_zona:
                 clave = clave_puesto(url, p)
                 if clave in vistos[uid] or not m.coincide(p["titulo"], nombre, incluir, excluir):
                     continue
-                marca = f"{clave}~{pref}"  # puesto ya descartado antes por el idioma que tiene hoy
+                
+                # Validamos contra la lista de países elegidos por el usuario
+                if descarta_por_pais(paises_usuario, p["titulo"], p["lugar"]):
+                    continue
+
+                marca = f"{clave}~{pref}"
                 if marca in vistos[uid]:
                     continue
                 if clave not in cache_idioma:
@@ -439,7 +465,7 @@ def buscar_y_avisar(db):
                     descartados[uid].append(marca)
                     continue
                 q = dict(p)
-                if idioma is None:  # no se pudo leer: se avisa, pero marcado
+                if idioma is None:
                     q["sin_verificar"] = True
                 pendientes[uid].append((nombre, q, clave))
 
@@ -485,8 +511,6 @@ def resumen_diario(db):
 # ---------------------------------------------------------------------- main
 
 def main():
-    # Los mensajes de las personas los atiende el Worker de Cloudflare (webhook).
-    # Este script solo busca ofertas y manda los avisos.
     modo = sys.argv[1] if len(sys.argv) > 1 else "buscar"
     if not BOT_TOKEN or not os.environ.get("FIREBASE_SERVICE_ACCOUNT"):
         print("Faltan los secrets BOT_TOKEN y/o FIREBASE_SERVICE_ACCOUNT")
