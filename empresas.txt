@@ -7,16 +7,29 @@
 # Workable y Selenios. Las páginas propias pueden fallar.
 # ============================================================
 
-# --- Mi lista (ejemplo, reemplazala por la tuya) ---
-# Tapi | https://applicants.selenios.com/c/tapi | AR
+# --- Empresas con página propia de empleos ---
 Yuno | https://jobs.lever.co/yuno
-# Ualá | https://www.uala.com.ar/sumate | AR
-Get on Board | https://www.getonbrd.com/jobs/customer-support
 Humand | https://careers.humand.co/jobs | AR
 Lemon | https://work.lemon.me/jobs | AR
 Belo | https://work.belo.app/jobs | AR
 Ripio | https://jobs.ripio.com/jobs | AR
 Naranja X | https://naranjax.na.teamtailor.com/jobs | AR
+# Ualá | https://www.uala.com.ar/sumate | AR
+# Tapi | https://applicants.selenios.com/c/tapi | AR
+
+# --- Get on Board: bolsa de trabajo con empleos de MUCHAS empresas de LATAM ---
+# Una línea por rubro, así cada persona recibe lo que se anota con /agregar.
+# (Los 10 links de abajo son las categorías reales del sitio.)
+Get on Board (Soporte y atención) | https://www.getonbrd.com/jobs/customer-support
+Get on Board (Ventas) | https://www.getonbrd.com/jobs/sales
+Get on Board (Marketing digital) | https://www.getonbrd.com/jobs/digital-marketing
+Get on Board (Diseño y UX) | https://www.getonbrd.com/jobs/design-ux
+Get on Board (Producto y agile) | https://www.getonbrd.com/jobs/innovation-agile
+Get on Board (Operaciones y administración) | https://www.getonbrd.com/jobs/operations-management
+Get on Board (Datos y analytics) | https://www.getonbrd.com/jobs/data-science-analytics
+Get on Board (Programación) | https://www.getonbrd.com/jobs/programming
+Get on Board (DevOps, sistemas y QA) | https://www.getonbrd.com/jobs/sysadmin-devops-qa
+Get on Board (IA y machine learning) | https://www.getonbrd.com/jobs/machine-learning-ai
 
 # --- Formato de ejemplo (sacales el # y poné el nombre real) ---
 # Empresa A | https://boards.greenhouse.io/nombreempresa | AR
