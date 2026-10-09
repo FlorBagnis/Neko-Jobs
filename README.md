@@ -1,15 +1,35 @@
 # 🐾 Neko-Jobs · Monitor de ofertas laborales
+
+<img width="767" height="494" alt="image" src="https://github.com/user-attachments/assets/f2a5b9dc-cf18-47a8-bc76-26eb012732dc" />
+
  
 Un bot gratuito que revisa cada hora las páginas de empleo de empresas tech y SaaS, filtra los puestos según tus palabras clave y te avisa por Telegram cuando aparece uno nuevo. Corre solo en GitHub Actions: no necesitás servidor ni saber programar.
 
 ---
 
+## 🚀 Bot compartido: ¡ya está disponible!
 
-## 🚧 Bot compartido: próximamente
+Ya podés usar **Neko Jobs** directamente desde Telegram, sin instalar nada ni saber programar. Es gratis y está pensado para **Argentina y LATAM** 🥰
 
-Estoy trabajando en un **bot compartido** para que cualquier persona pueda usar Neko Jobs directamente desde Telegram, sin instalar nada ni saber programar. Todavía está en preparación. Cuando esté listo, voy a publicar el link acá.
+👉 **[t.me/NekoJobsLATAM_bot](https://t.me/NekoJobsLATAM_bot)**
 
-Mientras tanto, si querés tener tu propio bot, podés copiar este repo (fork) y seguir los pasos de abajo.
+### ⚙️ ¿Cómo funciona?
+
+- **Personalizable:** agregá y quitá los puestos o palabras clave que quieras. Tip: sumá palabras en base a tu experiencia y a lo que buscás.
+- **Cero mareos:** el bot no repite avisos que ya viste.
+- **Tranqui:** si pasa una hora y no te manda nada, no está roto. Simplemente no hay puestos nuevos para tu búsqueda en ese momento.
+- **Ojo con LinkedIn:** tiene un bloqueo para este tipo de bots, pero hay otras fuentes muy buenas.
+
+### 👇 Probalo ahora mismo
+
+1. Mandale `/start` a [@NekoJobsLATAM_bot](https://t.me/NekoJobsLATAM_bot) (te responde con la bienvenida al toque).
+2. Probá `/agregar soporte` y después `/filtros` para ver cómo te confirma qué estás buscando.
+
+---
+
+### 🛠️ ¿Preferís tener tu propio bot?
+
+Si querés tu propia versión, podés copiar este repo (fork) y seguir los pasos de abajo.
 
 ## ✨ Qué hace
 
