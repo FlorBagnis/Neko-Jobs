@@ -58,6 +58,18 @@ def descarta_por_idioma(pref, detectado):
         return detectado == "en"
     return detectado != "en"  # pref == "en": solo inglés
 
+def descarta_por_pais(pais_usuario, titulo, lugar):
+    """
+    True si el usuario eligió un país específico (ej: 'chile') 
+    y el puesto NO lo menciona en su título o ubicación.
+    Si el usuario dejó el país en blanco (''), pasan todos los de LATAM.
+    """
+    if not pais_usuario:
+        return False  # Quiere todo LATAM abierto
+    
+    texto_puesto = m.normalizar(f"{titulo} {lugar}")
+    return pais_usuario not in texto_puesto
+
 
 BIENVENIDA = (
     "¡Hola! 🐾 Soy Neko Jobs. Reviso cada hora las páginas de empleo de empresas tech "
