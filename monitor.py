@@ -342,3 +342,13 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+# Comodines para compatibilidad con bot_compartido.py
+UBICACIONES_PERMITIDAS = ["argentina", "chile", "colombia", "mexico", "latam"]
+UBICACIONES_BLOQUEADAS = ["spain", "united states", "usa", "europe"]
+
+def compilar_exacto(palabras):
+    """Comodín para evitar errores si bot_compartido.py lo llama."""
+    return [re.compile(r"\b" + re.escape(normalizar(p)) + r"\b") for p in palabras]
+
