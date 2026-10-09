@@ -3,10 +3,10 @@
 Neko Jobs compartido: UN solo bot de Telegram para muchas personas.
 
 - Cada persona se configura chateando con el bot (/start, /agregar, /quitar...).
+  Eso lo atiende el Worker de Cloudflare (webhook), no este script.
 - Los filtros de cada una se guardan en Firebase (Firestore).
-- Modo "mensajes": solo contesta los mensajes nuevos (rápido).
-- Modo "buscar": contesta los mensajes y busca ofertas, y le manda a cada
-  persona solo lo que coincide con SUS filtros.
+- Este script, en GitHub Actions, busca ofertas y le manda a cada persona
+  solo lo que coincide con SUS filtros.
 
 Reutiliza los lectores y filtros de monitor.py, que sigue funcionando igual
 para quien lo use con su propio bot.
@@ -138,6 +138,8 @@ def asegurar_usuario(db, chat_id, nombre):
 
 
 # ------------------------------------------------------------------ comandos
+# (Hoy los atiende el Worker de Cloudflare; este código queda por si se vuelve
+#  al modo anterior de leer mensajes con getUpdates.)
 
 def lista_desde(texto):
     """'soporte, Customer Success' -> ['soporte', 'customer success']"""
@@ -246,7 +248,8 @@ def procesar(db, chat_id, nombre, texto):
 
 
 def procesar_mensajes(db):
-    """Lee los mensajes nuevos de Telegram, los contesta y recuerda hasta dónde leyó."""
+    """Lee los mensajes nuevos de Telegram, los contesta y recuerda hasta dónde leyó.
+    (Sin uso mientras el webhook del Worker esté activo: getUpdates no funciona con webhook.)"""
     meta = db.collection("meta").document("telegram")
     offset = (meta.get().to_dict() or {}).get("offset", 0)
     atendidos = 0
@@ -334,6 +337,9 @@ def buscar_y_avisar(db):
         print("No hay personas con avisos activos")
         return estadisticas
 
+    # DIAGNÓSTICO: solo cantidades, nunca IDs ni nombres (el log de un repo público es visible)
+    print(f"[info] personas con avisos activos: {len(activos)}")
+
     empresas = m.cargar_empresas()
     permitidas = m.compilar_exacto(m.leer_lista("ubicaciones_permitidas.txt") or m.UBICACIONES_PERMITIDAS)
     bloqueadas = m.compilar_exacto(m.leer_lista("ubicaciones_bloqueadas.txt") or m.UBICACIONES_BLOQUEADAS)
@@ -343,6 +349,8 @@ def buscar_y_avisar(db):
     pendientes = {uid: [] for uid in activos}   # (empresa, puesto, clave)
     descartados = {uid: [] for uid in activos}  # puestos en inglés: se marcan vistos
     cache_idioma = {}                           # el idioma de cada puesto se lee una sola vez
+
+    print(f"[info] empresas a revisar: {len(empresas)}")
 
     for nombre, url, es_ar in empresas:
         try:
@@ -357,6 +365,13 @@ def buscar_y_avisar(db):
 
         en_zona = [p for p in puestos
                    if m.ubicacion_ok(p["titulo"], p["lugar"], permitidas, bloqueadas, es_ar)]
+        coinciden = sum(
+            1 for p in en_zona
+            if any(m.coincide(p["titulo"], nombre, inc, exc) for inc, exc in filtros.values())
+        )
+        print(f"[info] {nombre}: {len(puestos)} puestos, {len(en_zona)} en zona, "
+              f"{coinciden} coinciden por título")
+
         for uid in activos:
             incluir, excluir = filtros[uid]
             for p in en_zona:
@@ -365,6 +380,7 @@ def buscar_y_avisar(db):
                     continue
                 if clave not in cache_idioma:
                     cache_idioma[clave] = m.idioma_del_texto(m.texto_del_puesto(p))
+                    print(f"[info] {nombre} | {p['titulo']} | idioma={cache_idioma[clave]}")
                 idioma = cache_idioma[clave]
                 if idioma == "en":
                     descartados[uid].append(clave)
@@ -373,6 +389,9 @@ def buscar_y_avisar(db):
                 if idioma is None:  # no se pudo leer: se avisa, pero marcado
                     q["sin_verificar"] = True
                 pendientes[uid].append((nombre, q, clave))
+
+    print(f"[info] puestos pendientes de avisar (suma de todas las personas): "
+          f"{sum(len(v) for v in pendientes.values())}")
 
     for uid, u in activos.items():
         try:
@@ -413,8 +432,8 @@ def resumen_diario(db):
 # ---------------------------------------------------------------------- main
 
 def main():
-    # modo "mensajes": solo contesta mensajes (rápido)
-    # modo "buscar":   contesta mensajes y busca ofertas siempre
+    # Los mensajes de las personas los atiende el Worker de Cloudflare (webhook).
+    # Este script solo busca ofertas y manda los avisos.
     modo = sys.argv[1] if len(sys.argv) > 1 else "buscar"
     if not BOT_TOKEN or not os.environ.get("FIREBASE_SERVICE_ACCOUNT"):
         print("Faltan los secrets BOT_TOKEN y/o FIREBASE_SERVICE_ACCOUNT")
