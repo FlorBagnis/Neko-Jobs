@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
-Monitor de ofertas de empleo multiusuario (Firestore + Telegram).
-Revisa las empresas y despacha los puestos según los filtros y país de cada usuario.
+Monitor de ofertas de empleo.
+
+Revisa las páginas de empleo listadas en empresas.txt, detecta puestos NUEVOS
+que coincidan con palabras_clave.txt (y no con excluir.txt) y avisa por Telegram.
+SOLO avisa de puestos cuyo texto (descripción) está en español.
+
+Uso local:   python monitor.py
+En GitHub:   lo ejecuta .github/workflows/monitor.yml cada hora.
 """
 import html
 import json
@@ -24,20 +30,36 @@ HEADERS = {
     )
 }
 TIMEOUT = 25
-MAX_PRIMERA_VEZ = 15
+MAX_PRIMERA_VEZ = 10  # tope de avisos por empresa la primera vez que se la revisa
+
 
 # ----------------------------------------------------------------- utilidades
 def normalizar(txt):
+    """Minúsculas y sin tildes, para comparar 'Atención' con 'atencion'."""
     txt = unicodedata.normalize("NFD", txt or "")
     txt = "".join(c for c in txt if unicodedata.category(c) != "Mn")
     return txt.lower().strip()
 
 
-def limpiar_html(h):
-    return BeautifulSoup(html.unescape(h or ""), "html.parser").get_text(" ", strip=True)
+def leer_lista(nombre_archivo):
+    ruta = BASE / nombre_archivo
+    if not ruta.exists():
+        return []
+    lineas = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if linea and not linea.startswith("#"):
+            lineas.append(linea)
+    return lineas
 
 
-# ------------------------------------------- filtro de idioma
+def compilar(palabras):
+    # \b al principio: "soporte" matchea "soportes", pero no "apoyoporte"
+    return [re.compile(r"\b" + re.escape(normalizar(p))) for p in palabras]
+
+
+# ------------------------------------------- filtro de idioma (texto del aviso)
+# Palabras muy frecuentes que NO existen en el otro idioma (sin tildes).
 PALABRAS_ES = {
     "de", "la", "el", "en", "y", "que", "los", "las", "con", "para", "por", "una",
     "del", "se", "al", "su", "sus", "nuestro", "nuestra", "nuestros", "tu", "tus",
@@ -51,16 +73,23 @@ PALABRAS_EN = {
     "company", "customers", "looking",
 }
 
+
+def limpiar_html(h):
+    return BeautifulSoup(html.unescape(h or ""), "html.parser").get_text(" ", strip=True)
+
+
 def idioma_del_texto(texto):
+    """'es', 'en', o None si no hay texto suficiente para saberlo."""
     palabras = re.findall(r"[a-z]+", normalizar(texto))
     if len(palabras) < 40:
-        return "es"  # por defecto si es corto
+        return None
     es = sum(1 for w in palabras if w in PALABRAS_ES)
     en = sum(1 for w in palabras if w in PALABRAS_EN)
-    return "es" if es >= en else "en"
+    return "es" if es > en else "en"
 
 
 def texto_del_puesto(p):
+    """Devuelve el texto del aviso (descripción). Vacío si no se pudo leer."""
     if p.get("texto"):
         return p["texto"]
     try:
@@ -78,19 +107,66 @@ def texto_del_puesto(p):
         return ""
 
 
+# ------------------------------------------------------ ubicaciones (listas)
+# Se usan cuando no existen ubicaciones_permitidas.txt / ubicaciones_bloqueadas.txt.
+UBICACIONES_PERMITIDAS = [
+    "argentina", "buenos aires", "caba", "capital federal", "gba",
+    "cordoba", "rosario", "mendoza", "la plata", "tucuman", "santa fe",
+    "mar del plata", "neuquen", "salta", "palermo",
+    "latam", "latin america", "latinoamerica", "america latina",
+    "south america", "sudamerica",
+    # Países de LATAM, para que pasen sin problema
+    "chile", "colombia", "mexico", "peru", "uruguay", "brasil", "brazil",
+    "ecuador", "venezuela", "bolivia", "paraguay", "costa rica", "panama"
+]
+
+# Ojo: los países de LATAM NO están en esta lista de bloqueo
+UBICACIONES_BLOQUEADAS = [
+    "spain", "espana", "madrid", "barcelona", "portugal",
+    "united states", "usa", "us", "estados unidos", "eeuu",
+    "canada", "north america", "europe", "emea", "apac",
+    "uk", "united kingdom", "london", "germany", "india",
+    "philippines", "poland", "israel",
+]
+
+
+def compilar_exacto(palabras):
+    """Como compilar(), pero la palabra tiene que estar completa ('us' no matchea 'usuario')."""
+    return [re.compile(r"\b" + re.escape(normalizar(p)) + r"\b") for p in palabras]
+
+
+def ubicacion_ok(titulo, lugar, permitidas, bloqueadas, empresa_ar=False):
+    """Solo Argentina. True si el título/lugar nombra Argentina (o una ciudad argentina).
+    Si no dice nada de ubicación, solo pasa cuando la empresa está marcada como argentina
+    (tercer campo AR en empresas.txt) y no menciona otro país."""
+    texto = normalizar(f"{titulo} {lugar}")
+    if any(p.search(texto) for p in permitidas):
+        return True
+    if any(p.search(texto) for p in bloqueadas):
+        return False
+    return empresa_ar
+
+
+def coincide(titulo, empresa, incluir, excluir):
+    t = normalizar(titulo)
+    if not any(p.search(t) for p in incluir):
+        return False
+    texto_excl = normalizar(f"{empresa} {titulo}")
+    return not any(p.search(texto_excl) for p in excluir)
+
+
 def cargar_empresas():
     empresas = []
-    ruta = BASE / "empresas.txt"
-    if not ruta.exists():
-        return []
-    for linea in ruta.read_text(encoding="utf-8").splitlines():
-        linea = linea.strip()
-        if not linea or linea.startswith("#") or "|" not in linea:
+    for linea in leer_lista("empresas.txt"):
+        if "|" not in linea:
             continue
         partes = [x.strip() for x in linea.split("|")]
         nombre, url = partes[0], partes[1]
-        if url.startswith("http"):
-            empresas.append((nombre, url))
+        es_ar = len(partes) > 2 and partes[2].upper() == "AR"
+        if not url.startswith("http"):
+            print(f"[aviso] {nombre}: todavía no tiene link, la salto")
+            continue
+        empresas.append((nombre, url, es_ar))
     return empresas
 
 
@@ -105,194 +181,186 @@ def get_json(url):
     return r.json()
 
 
-# ------------------------------------------------- lectores de empresas
+# ------------------------------------------------- lectores por tipo de página
 def buscar_greenhouse(url):
     data = get_json(f"https://boards-api.greenhouse.io/v1/boards/{slug(url)}/jobs?content=true")
-    return [{"id": str(j["id"]), "titulo": j["title"], "url": j["absolute_url"], "lugar": (j.get("location") or {}).get("name", ""), "texto": limpiar_html(j.get("content", ""))} for j in data.get("jobs", [])]
+    return [
+        {
+            "id": str(j["id"]),
+            "titulo": j["title"],
+            "url": j["absolute_url"],
+            "lugar": (j.get("location") or {}).get("name", ""),
+            "texto": limpiar_html(j.get("content", "")),
+        }
+        for j in data.get("jobs", [])
+    ]
+
 
 def buscar_lever(url):
     api = "api.eu.lever.co" if ".eu." in urlparse(url).netloc else "api.lever.co"
     data = get_json(f"https://{api}/v0/postings/{slug(url)}?mode=json")
-    return [{"id": j["id"], "titulo": j["text"], "url": j["hostedUrl"], "lugar": (j.get("categories") or {}).get("location", ""), "texto": (j.get("descriptionPlain") or "") + " " + (j.get("additionalPlain") or "")} for j in data]
+    return [
+        {
+            "id": j["id"],
+            "titulo": j["text"],
+            "url": j["hostedUrl"],
+            "lugar": (j.get("categories") or {}).get("location", ""),
+            "texto": (j.get("descriptionPlain") or "") + " " + (j.get("additionalPlain") or ""),
+        }
+        for j in data
+    ]
+
 
 def buscar_ashby(url):
     data = get_json(f"https://api.ashbyhq.com/posting-api/job-board/{slug(url)}")
-    return [{"id": j["id"], "titulo": j["title"], "url": j.get("jobUrl", url), "lugar": j.get("location", ""), "texto": j.get("descriptionPlain") or limpiar_html(j.get("descriptionHtml", ""))} for j in data.get("jobs", [])]
+    return [
+        {
+            "id": j["id"],
+            "titulo": j["title"],
+            "url": j.get("jobUrl", url),
+            "lugar": j.get("location", ""),
+            "texto": j.get("descriptionPlain") or limpiar_html(j.get("descriptionHtml", "")),
+        }
+        for j in data.get("jobs", [])
+    ]
+
 
 def buscar_workable(url):
     cuenta = slug(url)
-    r = requests.post(f"https://apply.workable.com/api/v3/accounts/{cuenta}/jobs", json={"query": "", "location": [], "department": [], "worktype": [], "remote": []}, headers=HEADERS, timeout=TIMEOUT)
+    r = requests.post(
+        f"https://apply.workable.com/api/v3/accounts/{cuenta}/jobs",
+        json={"query": "", "location": [], "department": [], "worktype": [], "remote": []},
+        headers=HEADERS,
+        timeout=TIMEOUT,
+    )
     r.raise_for_status()
     puestos = []
     for j in r.json().get("results", []):
         loc = j.get("location") or {}
-        puestos.append({"id": j["shortcode"], "titulo": j["title"], "url": f"https://apply.workable.com/{cuenta}/j/{j['shortcode']}/", "lugar": ", ".join(x for x in [loc.get("city"), loc.get("country")] if x), "json_url": f"https://apply.workable.com/api/v2/accounts/{cuenta}/jobs/{j['shortcode']}"})
+        puestos.append(
+            {
+                "id": j["shortcode"],
+                "titulo": j["title"],
+                "url": f"https://apply.workable.com/{cuenta}/j/{j['shortcode']}/",
+                "lugar": ", ".join(x for x in [loc.get("city"), loc.get("country")] if x),
+                "json_url": f"https://apply.workable.com/api/v2/accounts/{cuenta}/jobs/{j['shortcode']}",
+            }
+        )
     return puestos
 
+
 def buscar_selenios(url):
+    """Páginas de empleo hechas con Selenios (applicants.selenios.com/c/empresa).
+    Cada puesto es un título <h2>; no tiene un link propio visible, así que
+    el aviso apunta a la página de la empresa."""
     r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
     puestos = []
     for h in soup.find_all("h2"):
         titulo = " ".join(h.get_text(" ", strip=True).split())
-        if titulo:
-            puestos.append({"id": titulo, "titulo": titulo, "url": url, "lugar": ""})
+        if not titulo:
+            continue
+        modalidad = ""
+        # el texto que sigue al título suele ser Remoto / Híbrido / Presencial
+        for t in h.find_all_next(string=True, limit=4):
+            if t.strip().lower() in ("remoto", "híbrido", "hibrido", "presencial"):
+                modalidad = t.strip()
+                break
+        puestos.append({"id": titulo, "titulo": titulo, "url": url, "lugar": modalidad})
     return puestos
 
+
 def buscar_generico(url):
+    """Plan B para páginas propias: lee los links de la página y usa su texto."""
     r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
     vistos, puestos = set(), []
     for a in soup.find_all("a", href=True):
         texto = " ".join(a.get_text(" ", strip=True).split())
-        if 10 <= len(texto) <= 150:
-            link = urljoin(url, a["href"])
-            if link not in vistos:
-                vistos.add(link)
-                puestos.append({"id": link, "titulo": texto, "url": link, "lugar": ""})
+        if len(texto) < 10 or len(texto) > 150:
+            continue
+        link = urljoin(url, a["href"])
+        if link in vistos:
+            continue
+        vistos.add(link)
+        puestos.append({"id": link, "titulo": texto, "url": link, "lugar": ""})
     return puestos
+
 
 def elegir_lector(url):
     host = urlparse(url).netloc.lower()
-    if "greenhouse.io" in host: return buscar_greenhouse
-    if "lever.co" in host: return buscar_lever
-    if "ashbyhq.com" in host: return buscar_ashby
-    if "workable.com" in host: return buscar_workable
-    if "selenios.com" in host: return buscar_selenios
+    if "greenhouse.io" in host:
+        return buscar_greenhouse
+    if "lever.co" in host:
+        return buscar_lever
+    if "ashbyhq.com" in host:
+        return buscar_ashby
+    if "workable.com" in host:
+        return buscar_workable
+    if "selenios.com" in host:
+        return buscar_selenios
     return buscar_generico
 
 
-# ------------------------------------------------------------------- Firestore
-def obtener_token_firebase(sa):
-    import time
-    import base64
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import padding
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
-
-    ahora = int(time.time())
-    def b64(b):
-        return base64.urlsafe_b64encode(b).decode().rstrip("=")
-
-    header = b64(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
-    payload = b64(json.dumps({
-        "iss": sa["client_email"],
-        "scope": "https://www.googleapis.com/auth/datastore",
-        "aud": "https://oauth2.googleapis.com/token",
-        "iat": ahora,
-        "exp": ahora + 3600
-    }).encode())
-
-    private_key = load_pem_private_key(sa["private_key"].encode(), password=None)
-    sig = private_key.sign(f"{header}.{payload}".encode(), padding.PKCS1v15(), hashes.SHA256())
-    assertion = f"{header}.{payload}.{b64(sig)}"
-
-    r = requests.post("https://oauth2.googleapis.com/token", data={
-        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        "assertion": assertion
-    })
-    return r.json().get("access_token")
-
-
-def cargar_usuarios_firestore():
-    sa_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "")
-    if not sa_json:
-        print("[aviso] No hay FIREBASE_SERVICE_ACCOUNT configurado en GitHub Secrets.")
-        return []
-    try:
-        sa = json.loads(sa_json)
-        token = obtener_token_firebase(sa)
-        url = f"https://firestore.googleapis.com/v1/projects/{sa['project_id']}/databases/(default)/documents/usuarios"
-        r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
-        if not r.ok:
-            print(f"[error Firestore] {r.status_code}: {r.text}")
-            return []
-
-        usuarios = []
-        for doc in r.json().get("documents", []):
-            fields = doc.get("fields", {})
-            chat_id = int(doc["name"].split("/")[-1])
-            activo = fields.get("activo", {}).get("booleanValue", True)
-            if not activo:
-                continue
-
-            palabras = [v.get("stringValue", "") for v in fields.get("palabras", {}).get("arrayValue", {}).get("values", [])]
-            excluir = [v.get("stringValue", "") for v in fields.get("excluir", {}).get("arrayValue", {}).get("values", [])]
-            idioma = fields.get("idioma", {}).get("stringValue", "es")
-            pais = fields.get("pais", {}).get("stringValue", "").strip().lower()
-            inicial = fields.get("inicial", {}).get("booleanValue", True)
-            avisados = {v.get("stringValue", "") for v in fields.get("avisados", {}).get("arrayValue", {}).get("values", [])}
-
-            usuarios.append({
-                "chat_id": chat_id,
-                "palabras": [normalizar(p) for p in palabras if p],
-                "excluir": [normalizar(e) for e in excluir if e],
-                "idioma": idioma,
-                "pais": pais,
-                "inicial": inicial,
-                "avisados": avisados
-            })
-        return usuarios
-    except Exception as e:
-        print(f"[error leyendo Firestore] {e}")
-        return []
-
-
-def enviar_telegram(chat_id, texto):
+# -------------------------------------------------------------------- avisos
+def enviar_telegram(texto):
+    """Devuelve None si no está configurado, True si salió bien, False si falló."""
     token = os.environ.get("TELEGRAM_TOKEN", "").strip()
-    if not token or not chat_id:
-        return False
+    chat = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    if not token or not chat:
+        return None
     try:
         r = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": texto[:4000], "disable_web_page_preview": True},
-            timeout=TIMEOUT
+            data={"chat_id": chat, "text": texto[:4000], "disable_web_page_preview": "true"},
+            timeout=TIMEOUT,
         )
-        return r.ok
-    except Exception:
+    except requests.RequestException as e:
+        print(f"[error Telegram] {type(e).__name__}")
         return False
+    if not r.ok:
+        print(f"[error Telegram] {r.status_code}: {r.text}")
+    return r.ok
 
 
-# ------------------------------- comodines y listas de compatibilidad
-# (usados por bot_compartido.py)
-UBICACIONES_PERMITIDAS = [
-    "argentina", "buenos aires", "caba", "capital federal", "gba",
-    "cordoba", "rosario", "mendoza", "la plata", "tucuman", "santa fe",
-    "mar del plata", "neuquen", "salta", "palermo",
-    "latam", "latin america", "latinoamerica", "america latina",
-    "south america", "sudamerica",
-    # Sumamos los países de LATAM para que pasen sin problema
-    "chile", "colombia", "mexico", "peru", "uruguay", "brasil", "brazil",
-    "ecuador", "venezuela", "bolivia", "paraguay", "costa rica", "panama"
-]
+def enviar_whatsapp(texto):
+    """WhatsApp a tu propio número, vía CallMeBot (servicio gratuito no oficial)."""
+    telefono = os.environ.get("WHATSAPP_PHONE", "").strip()
+    apikey = os.environ.get("CALLMEBOT_APIKEY", "").strip()
+    if not telefono or not apikey:
+        return None
+    try:
+        r = requests.get(
+            "https://api.callmebot.com/whatsapp.php",
+            params={"phone": telefono, "text": texto[:1500], "apikey": apikey},
+            timeout=TIMEOUT,
+        )
+    except requests.RequestException as e:
+        print(f"[error WhatsApp] {type(e).__name__}")
+        return False
+    if not r.ok:
+        print(f"[error WhatsApp] {r.status_code}: {r.text[:200]}")
+    return r.ok
 
-# Ojo: los países de LATAM NO están en esta lista de bloqueo
-UBICACIONES_BLOQUEADAS = [
-    "spain", "espana", "madrid", "barcelona", "portugal",
-    "united states", "usa", "us", "estados unidos", "eeuu",
-    "canada", "north america", "europe", "emea", "apac",
-    "uk", "united kingdom", "london", "germany", "india",
-    "philippines", "poland", "israel",
-]
 
-def compilar_exacto(palabras):
-    return [re.compile(r"\b" + re.escape(normalizar(p)) + r"\b") for p in palabras]
+def enviar(texto):
+    """True si el aviso salió por algún canal (o si no hay canales: modo prueba)."""
+    resultados = [r for r in (enviar_telegram(texto), enviar_whatsapp(texto)) if r is not None]
+    if not resultados:
+        print("[modo prueba, sin Telegram ni WhatsApp configurado]\n" + texto + "\n")
+        return True
+    return any(resultados)
 
-# Alias: bot_compartido.py llama a m.compilar(...)
-compilar = compilar_exacto
 
-def leer_lista(nombre_archivo):
-    ruta = BASE / nombre_archivo
-    if not ruta.exists():
-        return []
-    lineas = []
-    for linea in ruta.read_text(encoding="utf-8").splitlines():
-        linea = linea.strip()
-        if linea and not linea.startswith("#"):
-            lineas.append(linea)
-    return lineas
+def armar_mensaje(nombre, nuevos):
+    lineas = [f"🔔 {nombre}: {len(nuevos)} puesto(s) nuevo(s)", ""]
+    for p in nuevos:
+        lugar = f" ({p['lugar']})" if p["lugar"] else ""
+        marca = "\n  ⚠️ no pude verificar el idioma del aviso" if p.get("sin_verificar") else ""
+        lineas.append(f"• {p['titulo']}{lugar}\n  {p['url']}{marca}")
+    return "\n".join(lineas)
 
 
 # ---------------------------------------------------------------------- main
@@ -302,80 +370,63 @@ def main():
         print("No hay empresas con link en empresas.txt")
         return 1
 
-    usuarios = cargar_usuarios_firestore()
-    if not usuarios:
-        print("No hay usuarios activos en Firestore para notificar.")
-        return 0
-
+    incluir = compilar(leer_lista("palabras_clave.txt"))
+    excluir = compilar(leer_lista("excluir.txt"))
+    permitidas = compilar_exacto(leer_lista("ubicaciones_permitidas.txt") or UBICACIONES_PERMITIDAS)
+    bloqueadas = compilar_exacto(leer_lista("ubicaciones_bloqueadas.txt") or UBICACIONES_BLOQUEADAS)
     estado = json.loads(STATE_FILE.read_text("utf-8")) if STATE_FILE.exists() else {}
 
-    for nombre, url in empresas:
+    for nombre, url, es_ar in empresas:
         try:
             puestos = elegir_lector(url)(url)
-        except Exception as e:
+        except Exception as e:  # una empresa que falla no frena a las demás
             print(f"[error] {nombre}: {e}")
             continue
 
         if not puestos:
-            print(f"[aviso] {nombre}: no se encontraron puestos.")
+            print(f"[aviso] {nombre}: no se encontraron puestos "
+                  "(¿la página carga con JavaScript o cambió el link?)")
             continue
 
         vistos = set(estado.get(url, []))
+        primera_vez = url not in estado
         sin_ver = [p for p in puestos if p["id"] not in vistos]
+        con_clave = [p for p in sin_ver if coincide(p["titulo"], nombre, incluir, excluir)]
+        nuevos = [
+            p for p in con_clave
+            if ubicacion_ok(p["titulo"], p["lugar"], permitidas, bloqueadas, es_ar)
+        ]
+        print(f"     sin ver antes: {len(sin_ver)} | con tus palabras clave: {len(con_clave)} "
+              f"| en Argentina/LATAM: {len(nuevos)}")
+        if sin_ver and not con_clave:
+            print("     ejemplos de títulos leídos: " + " / ".join(p["titulo"] for p in sin_ver[:5]))
+        if con_clave and not nuevos:
+            print("     ejemplos de ubicaciones: " + " / ".join(
+                f"{p['titulo']} [{p['lugar'] or 'sin ubicación'}]" for p in con_clave[:5]))
+        # idioma del cuerpo del aviso: solo pasan los que están en español
+        en_espanol, descartados_en = [], 0
+        for p in nuevos:
+            idioma = idioma_del_texto(texto_del_puesto(p))
+            if idioma == "es":
+                en_espanol.append(p)
+            elif idioma is None:  # no se pudo leer: se avisa, pero marcado
+                p["sin_verificar"] = True
+                en_espanol.append(p)
+            else:
+                descartados_en += 1
+        nuevos = en_espanol
+        if descartados_en:
+            print(f"     ({descartados_en} descartados por estar en inglés)")
+        if primera_vez:
+            nuevos = nuevos[:MAX_PRIMERA_VEZ]
 
-        if not sin_ver:
-            continue
+        print(f"[ok] {nombre}: {len(puestos)} puestos leídos, {len(nuevos)} para avisar")
+        enviado = enviar(armar_mensaje(nombre, nuevos)) if nuevos else True
 
-        # Evaluamos para cada usuario
-        for u in usuarios:
-            if not u["palabras"]:
-                continue
-
-            # Filtramos puestos para este usuario específico
-            nuevos_usuario = []
-            for p in sin_ver:
-                titulo_norm = normalizar(p["titulo"])
-                lugar_norm = normalizar(p["lugar"])
-                texto_completo = f"{titulo_norm} {lugar_norm}"
-
-                # 1. Validar palabras clave obligatorias
-                if not any(palabra in titulo_norm for palabra in u["palabras"]):
-                    continue
-
-                # 2. Validar exclusiones
-                if any(exc in titulo_norm or exc in normalizar(nombre) for exc in u["excluir"]):
-                    continue
-
-                # 3. Validar país (si el usuario eligió uno con /pais)
-                if u["pais"] and u["pais"] not in texto_completo:
-                    continue
-
-                # 4. Validar idioma
-                if u["idioma"] != "ambos":
-                    lang = idioma_del_texto(texto_del_puesto(p))
-                    if lang != u["idioma"]:
-                        continue
-
-                nuevos_usuario.append(p)
-
-            if not nuevos_usuario:
-                continue
-
-            # Si es la primera vez del usuario, limitamos
-            if u["inicial"]:
-                nuevos_usuario = nuevos_usuario[:MAX_PRIMERA_VEZ]
-
-            # Armar mensaje personalizado
-            lineas = [f"🔔 {nombre}: {len(nuevos_usuario)} puesto(s) nuevo(s)", ""]
-            for p in nuevos_usuario:
-                lugar = f" ({p['lugar']})" if p["lugar"] else ""
-                lineas.append(f"• {p['titulo']}{lugar}\n  {p['url']}")
-
-            mensaje = "\n".join(lineas)
-            enviar_telegram(u["chat_id"], mensaje)
-
-        # Actualizamos vistos generales de la empresa
-        estado[url] = sorted(vistos | {p["id"] for p in puestos})
+        if enviado:
+            estado[url] = sorted(vistos | {p["id"] for p in puestos})
+        else:
+            print(f"[aviso] {nombre}: no se pudo avisar, se reintenta en la próxima corrida")
 
     STATE_FILE.write_text(json.dumps(estado, ensure_ascii=False, indent=1), encoding="utf-8")
     return 0
