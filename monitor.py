@@ -344,18 +344,34 @@ if __name__ == "__main__":
     sys.exit(main())
 
 
-# Comodines para compatibilidad con bot_compartido.py
-UBICACIONES_PERMITIDAS = ["argentina", "chile", "colombia", "mexico", "latam"]
-UBICACIONES_BLOQUEADAS = ["spain", "united states", "usa", "europe"]
+
+# Comodines y listas de compatibilidad para bot_compartido.py
+import re
+
+UBICACIONES_PERMITIDAS = [
+    "argentina", "buenos aires", "caba", "capital federal", "gba",
+    "cordoba", "rosario", "mendoza", "la plata", "tucuman", "santa fe",
+    "mar del plata", "neuquen", "salta", "palermo",
+    "latam", "latin america", "latinoamerica", "america latina",
+    "south america", "sudamerica",
+    # Sumamos los países de LATAM para que pasen sin problema
+    "chile", "colombia", "mexico", "peru", "uruguay", "brasil", "brazil",
+    "ecuador", "venezuela", "bolivia", "paraguay", "costa rica", "panama"
+]
+
+# ¡Ojo acá! Sacamos a todos los países de LATAM de esta lista de bloqueo
+UBICACIONES_BLOQUEADAS = [
+    "spain", "espana", "madrid", "barcelona", "portugal", 
+    "united states", "usa", "us", "estados unidos", "eeuu",
+    "canada", "north america", "europe", "emea", "apac", 
+    "uk", "united kingdom", "london", "germany", "india", 
+    "philippines", "poland", "israel",
+]
 
 def compilar_exacto(palabras):
-    """Comodín para evitar errores si bot_compartido.py lo llama."""
     return [re.compile(r"\b" + re.escape(normalizar(p)) + r"\b") for p in palabras]
 
-
-
 def leer_lista(nombre_archivo):
-    """Comodín para compatibilidad con bot_compartido.py."""
     ruta = BASE / nombre_archivo
     if not ruta.exists():
         return []
