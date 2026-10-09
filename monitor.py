@@ -352,3 +352,16 @@ def compilar_exacto(palabras):
     """Comodín para evitar errores si bot_compartido.py lo llama."""
     return [re.compile(r"\b" + re.escape(normalizar(p)) + r"\b") for p in palabras]
 
+
+
+def leer_lista(nombre_archivo):
+    """Comodín para compatibilidad con bot_compartido.py."""
+    ruta = BASE / nombre_archivo
+    if not ruta.exists():
+        return []
+    lineas = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if linea and not linea.startswith("#"):
+            lineas.append(linea)
+    return lineas
