@@ -39,6 +39,26 @@ MAX_PALABRAS = 30              # palabras clave / exclusiones por persona
 MAX_AVISADOS = 3000            # puestos que se recuerdan por persona
 MINUTOS_ENTRE_BUSQUEDAS = 55   # (ya no se usa para decidir: el modo lo define el workflow)
 
+# Idioma de la descripción que eligió cada persona con /idioma (campo "idioma" en Firestore).
+IDIOMAS = {"es": "español", "en": "inglés", "ambos": "español e inglés"}
+
+
+def idioma_de(u):
+    """Idioma elegido por la persona. Si no tiene el campo (usuarios viejos): español."""
+    v = u.get("idioma", "es")
+    return v if v in IDIOMAS else "es"
+
+
+def descarta_por_idioma(pref, detectado):
+    """True si el puesto no corresponde al idioma que eligió la persona.
+    Si no se pudo detectar el idioma (None), no se descarta: se avisa marcado."""
+    if pref == "ambos" or detectado is None:
+        return False
+    if pref == "es":
+        return detectado == "en"
+    return detectado != "en"  # pref == "en": solo inglés
+
+
 BIENVENIDA = (
     "¡Hola! 🐾 Soy Neko Jobs. Reviso cada hora las páginas de empleo de empresas tech "
     "y te aviso por acá de los puestos nuevos que coincidan con lo que buscás.\n\n"
@@ -129,6 +149,7 @@ def asegurar_usuario(db, chat_id, nombre):
         "palabras": [],
         "excluir": [],
         "activo": True,
+        "idioma": "es",
         "inicial": True,  # True = en la próxima búsqueda recibe lo ya publicado (tope MAX_INICIAL)
         "avisados": [],
         "creado": firestore.SERVER_TIMESTAMP,
@@ -175,7 +196,8 @@ def resumen_filtros(u):
     return (
         f"Tus avisos están {estado}\n\n"
         f"🔎 Busco: {', '.join(palabras) if palabras else 'todavía nada (usá /agregar)'}\n"
-        f"🚫 Descarto: {', '.join(excluir) if excluir else 'nada'}"
+        f"🚫 Descarto: {', '.join(excluir) if excluir else 'nada'}\n"
+        f"🌐 Idioma de las ofertas: {IDIOMAS[idioma_de(u)]}"
     )
 
 
@@ -235,6 +257,19 @@ def procesar(db, chat_id, nombre, texto):
             return "No encontré esas palabras en tus exclusiones. Mirá /filtros"
         ref.update({"excluir": excluir, "inicial": True})
         return f"✅ Ya no descarto: {', '.join(quitadas)}"
+
+    if cmd == "/idioma":
+        mapa = {
+            "es": "es", "espanol": "es",
+            "en": "en", "ingles": "en", "english": "en",
+            "ambos": "ambos", "todos": "ambos", "both": "ambos",
+        }
+        v = mapa.get(m.normalizar(resto))
+        if not v:
+            return (f"Hoy te aviso de ofertas en {IDIOMAS[idioma_de(u)]}.\n\n"
+                    "Para cambiarlo:\n/idioma es\n/idioma en\n/idioma ambos")
+        ref.update({"idioma": v, "inicial": True})
+        return f"✅ Listo, te aviso de ofertas en {IDIOMAS[v]}."
 
     if cmd == "/pausar":
         ref.update({"activo": False})
@@ -339,6 +374,8 @@ def buscar_y_avisar(db):
 
     # DIAGNÓSTICO: solo cantidades, nunca IDs ni nombres (el log de un repo público es visible)
     print(f"[info] personas con avisos activos: {len(activos)}")
+    por_idioma = {k: sum(1 for u in activos.values() if idioma_de(u) == k) for k in IDIOMAS}
+    print(f"[info] idioma elegido: es={por_idioma['es']} en={por_idioma['en']} ambos={por_idioma['ambos']}")
 
     empresas = m.cargar_empresas()
     permitidas = m.compilar_exacto(m.leer_lista("ubicaciones_permitidas.txt") or m.UBICACIONES_PERMITIDAS)
@@ -347,7 +384,7 @@ def buscar_y_avisar(db):
                for uid, u in activos.items()}
     vistos = {uid: set(u.get("avisados", [])) for uid, u in activos.items()}
     pendientes = {uid: [] for uid in activos}   # (empresa, puesto, clave)
-    descartados = {uid: [] for uid in activos}  # puestos en inglés: se marcan vistos
+    descartados = {uid: [] for uid in activos}  # puestos que no son del idioma elegido: se marcan vistos
     cache_idioma = {}                           # el idioma de cada puesto se lee una sola vez
 
     print(f"[info] empresas a revisar: {len(empresas)}")
@@ -374,16 +411,20 @@ def buscar_y_avisar(db):
 
         for uid in activos:
             incluir, excluir = filtros[uid]
+            pref = idioma_de(activos[uid])
             for p in en_zona:
                 clave = clave_puesto(url, p)
                 if clave in vistos[uid] or not m.coincide(p["titulo"], nombre, incluir, excluir):
+                    continue
+                marca = f"{clave}~{pref}"  # puesto ya descartado antes por el idioma que tiene hoy
+                if marca in vistos[uid]:
                     continue
                 if clave not in cache_idioma:
                     cache_idioma[clave] = m.idioma_del_texto(m.texto_del_puesto(p))
                     print(f"[info] {nombre} | {p['titulo']} | idioma={cache_idioma[clave]}")
                 idioma = cache_idioma[clave]
-                if idioma == "en":
-                    descartados[uid].append(clave)
+                if descarta_por_idioma(pref, idioma):
+                    descartados[uid].append(marca)
                     continue
                 q = dict(p)
                 if idioma is None:  # no se pudo leer: se avisa, pero marcado
