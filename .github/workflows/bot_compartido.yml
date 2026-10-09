@@ -2,7 +2,7 @@ name: Neko Jobs compartido
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # cada ~10 min contesta mensajes; busca ofertas ~1 vez por hora
+    - cron: "7 * * * *"      # busca ofertas y manda avisos una vez por hora
   workflow_dispatch:          # para probarlo a mano desde Actions
 
 concurrency:
@@ -25,9 +25,7 @@ jobs:
           cache: pip
 
       - name: Instalar librerías
-        run: |
-          pip install -r requirements.txt
-          pip install firebase-admin
+        run: pip install -r requirements.txt
 
       - name: Correr el bot compartido
         env:
