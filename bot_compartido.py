@@ -508,6 +508,19 @@ def resumen_diario(db):
         meta.set({"ultimo_resumen": hoy, "avisos_desde_resumen": 0, "errores_desde_resumen": 0}, merge=True)
 
 
+def resumen_demo(db):
+    """Resumen a demanda. Solo lee, no reinicia nada."""
+    d = db.collection("meta").document("estado").get().to_dict() or {}
+    usuarios = [x.to_dict() for x in db.collection("usuarios").stream()]
+    activos = sum(1 for u in usuarios if u.get("activo", True) and u.get("palabras"))
+    texto = (
+        f"🐾 Neko Jobs, resumen completo\n"
+        f"Personas: {len(usuarios)} ({activos} con avisos activos)\n"
+        f"Avisos enviados desde el último resumen: {d.get('avisos_desde_resumen', 0)}\n"
+        f"Errores de lectura de empresas: {d.get('errores_desde_resumen', 0)}"
+    )
+    return 0 if enviar(int(ADMIN_CHAT_ID), texto) == "ok" else 1
+
 # ---------------------------------------------------------------------- main
 
 def main():
@@ -516,6 +529,8 @@ def main():
         print("Faltan los secrets BOT_TOKEN y/o FIREBASE_SERVICE_ACCOUNT")
         return 1
     db = conectar()
+    if modo == "resumen":
+        return resumen_demo(db)
     atendidos = 0
 
     if modo == "mensajes":
