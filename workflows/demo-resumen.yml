@@ -1,0 +1,20 @@
+name: Neko Jobs - demo resumen
+on:
+  workflow_dispatch:
+
+jobs:
+  correr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python bot_compartido.py resumen
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
