@@ -26,7 +26,10 @@ Coderio | https://jobs.lever.co/coderio?location=Buenos+Aires | AR
 OLIVER Argentina | https://job-boards.greenhouse.io/oliverargentina | AR
 Aleph (Buenos Aires) | https://jobs.lever.co/aleph?location=Buenos+Aires%2C+Argentina | AR
 dLocal (Buenos Aires) | https://jobs.lever.co/dlocal?location=Buenos+Aires | AR
-# Tapi | https://applicants.selenios.com/c/tapi | AR
+Tapi | https://applicants.selenios.com/c/tapi | AR
+Fudo | https://fu.do/es-ar/trabaja-con-nosotros/ | AR
+Morfy | https://www.morfy.app/empleos#open-positions | AR
+
 
 # --- Fintech, pagos y tech de LATAM / remoto ---
 Yuno | https://jobs.lever.co/yuno
