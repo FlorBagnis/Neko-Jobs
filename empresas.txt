@@ -7,19 +7,54 @@
 # Workable y Selenios. Las páginas propias pueden fallar.
 # ============================================================
 
-# --- Empresas con página propia de empleos ---
-Yuno | https://jobs.lever.co/yuno
+# --- Empresas de Argentina ---
 Humand | https://careers.humand.co/jobs | AR
 Lemon | https://work.lemon.me/jobs | AR
 Belo | https://work.belo.app/jobs | AR
 Ripio | https://jobs.ripio.com/jobs | AR
 Naranja X | https://naranjax.na.teamtailor.com/jobs | AR
-# Ualá | https://www.uala.com.ar/sumate | AR
+Clara Argentina | https://claracareers.com/es/locations/argentina | AR
+MODO | https://modo.bamboohr.com/careers | AR
+Pomelo | https://pomelo.la/empresa/trabaja-con-nosotros | AR
+Ualá | https://www.ua.la/sumate | AR
+Personal | https://empleos.personal.com.ar/ | AR
+Kavak Argentina | https://www.kavak.com/ar/empleos | AR
+EY Argentina | https://www.ey.com/es_ar/careers/job-search | AR
+Universia Empleo | https://www.universia.net/ar/empleo | AR
+Despegar | https://jobs.lever.co/despegar?location=Buenos+Aires | AR
+Coderio | https://jobs.lever.co/coderio?location=Buenos+Aires | AR
+OLIVER Argentina | https://job-boards.greenhouse.io/oliverargentina | AR
+Aleph (Buenos Aires) | https://jobs.lever.co/aleph?location=Buenos+Aires%2C+Argentina | AR
+dLocal (Buenos Aires) | https://jobs.lever.co/dlocal?location=Buenos+Aires | AR
 # Tapi | https://applicants.selenios.com/c/tapi | AR
+
+# --- Fintech, pagos y tech de LATAM / remoto ---
+Yuno | https://jobs.lever.co/yuno
+Bitso | https://bitso.com/ar/jobs
+Rappi | https://careers.rappi.com/es/careers
+Kushki | https://www.kushkipagos.com/careers-kushki
+Xepelin | https://xepelin.com/trabaja-con-nosotros
+Global66 | https://global66.teamtailor.com/jobs
+Ontop | https://www.getontop.com/careers
+Deel | https://www.deel.com/careers/
+Citi | https://jobs.citi.com/
+Nubank | https://jobs.ashbyhq.com/nubank
+DEPT | https://job-boards.greenhouse.io/dept
+QuintoAndar | https://job-boards.greenhouse.io/quintoandar
+Binance (Argentina) | https://jobs.lever.co/binance?location=Argentina%2C+Buenos+Aires
+RYZ Labs | https://jobs.lever.co/RyzLabs
+Resilient Co | https://jobs.lever.co/resilientco/?location=Argentina
+Bluelight Consulting | https://jobs.lever.co/bluelightconsulting
+Terrific | https://jobs.lever.co/terrific-innovation
+Chainlink Labs | https://jobs.ashbyhq.com/chainlink-labs?workplaceType=Remote
+Siena AI | https://jobs.ashbyhq.com/siena
+Rehire | https://jobs.ashbyhq.com/rehire
+Hire Hangar | https://jobs.ashbyhq.com/hirehangar
+Monster Energy LATAM | https://job-boards.greenhouse.io/monsterenergylatam
 
 # --- Get on Board: bolsa de trabajo con empleos de MUCHAS empresas de LATAM ---
 # Una línea por rubro, así cada persona recibe lo que se anota con /agregar.
-# (Los 10 links de abajo son las categorías reales del sitio.)
+Get on Board (Buenos Aires) | https://getonbrd.com/jobs/city/buenos-aires | AR
 Get on Board (Soporte y atención) | https://www.getonbrd.com/jobs/customer-support
 Get on Board (Ventas) | https://www.getonbrd.com/jobs/sales
 Get on Board (Marketing digital) | https://www.getonbrd.com/jobs/digital-marketing
