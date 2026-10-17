@@ -35,7 +35,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "").strip()
 
 MAX_INICIAL = 15               # avisos como máximo la primera vez (o al cambiar filtros)
-MAX_PALABRAS = 30              # palabras clave / exclusiones por persona
+MAX_PALABRAS = 70              # palabras clave / exclusiones por persona
 MAX_AVISADOS = 3000            # puestos que se recuerdan por persona
 MINUTOS_ENTRE_BUSQUEDAS = 55   # (ya no se usa para decidir: el modo lo define el workflow)
 
@@ -204,6 +204,16 @@ def sumar(actual, nuevos):
     return resultado, agregados
 
 
+def llego_al_maximo(actual, nuevos):
+    """True si hay palabras nuevas pero la lista ya está en el máximo (no se pudo agregar nada).
+    Si algo falla, devuelve False y se usa el mensaje de siempre."""
+    try:
+        claves = {m.normalizar(x) for x in actual}
+        return len(actual) >= MAX_PALABRAS and any(m.normalizar(x) not in claves for x in nuevos)
+    except Exception:
+        return False
+
+
 def restar(actual, quitar):
     claves = {m.normalizar(x) for x in quitar}
     quitados = [x for x in actual if m.normalizar(x) in claves]
@@ -253,6 +263,8 @@ def procesar(db, chat_id, nombre, texto):
         if not items:
             return "Decime qué querés agregar. Ejemplo:\n/agregar soporte, customer success"
         palabras, agregadas = sumar(palabras, items)
+        if not agregadas and llego_al_maximo(palabras, items):
+            return f"Llegaste al máximo de {MAX_PALABRAS} palabras. Quitá alguna con /quitar"
         if not agregadas:
             return "Esas palabras ya estaban 😉\n\n" + resumen_filtros(u)
         ref.update({"palabras": palabras, "inicial": True})
@@ -272,6 +284,8 @@ def procesar(db, chat_id, nombre, texto):
         if not items:
             return "Decime qué querés descartar. Ejemplo:\n/excluir senior, ventas"
         excluir, agregadas = sumar(excluir, items)
+        if not agregadas and llego_al_maximo(excluir, items):
+            return f"Llegaste al máximo de {MAX_PALABRAS} palabras. Quitá alguna con /quitar"
         if not agregadas:
             return "Esas palabras ya estaban 😉\n\n" + resumen_filtros(u)
         ref.update({"excluir": excluir})
