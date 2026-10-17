@@ -23,7 +23,8 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import firebase_admin
 import requests
@@ -38,6 +39,52 @@ MAX_INICIAL = 15               # avisos como máximo la primera vez (o al cambia
 MAX_PALABRAS = 70              # palabras clave / exclusiones por persona
 MAX_AVISADOS = 3000            # puestos que se recuerdan por persona
 MINUTOS_ENTRE_BUSQUEDAS = 55   # (ya no se usa para decidir: el modo lo define el workflow)
+MAX_COLA = 300                 # puestos que se acumulan por persona en modo /resumen on
+ZONA_DEFECTO = "America/Argentina/Buenos_Aires"   # si la persona no tiene zona ni país conocido
+
+# País (sin tildes) -> zona horaria IANA. Mismo mapa que usa el Worker en /zona.
+ZONAS_PAIS = {
+    "argentina": "America/Argentina/Buenos_Aires",
+    "chile": "America/Santiago",
+    "mexico": "America/Mexico_City",
+    "colombia": "America/Bogota",
+    "peru": "America/Lima",
+    "uruguay": "America/Montevideo",
+    "brasil": "America/Sao_Paulo",
+    "brazil": "America/Sao_Paulo",
+    "ecuador": "America/Guayaquil",
+    "venezuela": "America/Caracas",
+    "bolivia": "America/La_Paz",
+    "paraguay": "America/Asuncion",
+    "costa rica": "America/Costa_Rica",
+    "panama": "America/Panama",
+    "guatemala": "America/Guatemala",
+    "el salvador": "America/El_Salvador",
+    "honduras": "America/Tegucigalpa",
+    "nicaragua": "America/Managua",
+    "republica dominicana": "America/Santo_Domingo",
+    "cuba": "America/Havana",
+    "puerto rico": "America/Puerto_Rico",
+}
+
+# Filtros /nivel y /modalidad: se buscan en título + ubicación (sin tildes, minúsculas).
+PATRONES_NIVEL = {
+    "junior": re.compile(r"\b(junior|jr|trainee|pasante|entry[- ]?level)\b"),
+    "semi": re.compile(r"\b(semi[- ]?(senior|sr)|ssr|semi|intermedio|mid[- ]?level)\b"),
+    # "senior" también se puede elegir en /nivel; además sirve para detectar que el título declara OTRO nivel
+    "senior": re.compile(r"\b(senior|sr|tech lead|team lead|lider|principal|head of|director)\b"),
+}
+PATRONES_MODALIDAD = {
+    "remoto": re.compile(r"\b(remoto|remota|remote|teletrabajo|home office|work from home|wfh)\b"),
+    "hibrido": re.compile(r"\b(hibrido|hibrida|hybrid)\b"),
+    # "presencial" también se puede elegir en /modalidad; además sirve para detectar que el puesto declara OTRA modalidad
+    "presencial": re.compile(r"\b(presencial|onsite|on[- ]site|in[- ]office)\b"),
+}
+# "remoto" en /pais: puestos que no dependen del lugar
+PATRON_REMOTO = re.compile(
+    r"\b(remoto|remota|remote|teletrabajo|home office|work from home|wfh|anywhere|worldwide)\b")
+
+HORA_RESUMEN_UTC = 12          # hora (UTC) desde la que se manda el resumen diario (9:00 en Argentina)
 
 # Idioma de la descripción que eligió cada persona con /idioma (campo "idioma" en Firestore).
 IDIOMAS = {"es": "español", "en": "inglés", "ambos": "español e inglés"}
@@ -67,6 +114,13 @@ def descarta_por_pais(paises_usuario, titulo, lugar):
     """
     if not paises_usuario:
         return False  # Quiere todo LATAM abierto
+
+    # "remoto" en /pais: también pasan los puestos que no dependen del lugar
+    try:
+        if "remoto" in [m.normalizar(x) for x in paises_usuario] and es_remoto(titulo, lugar):
+            return False
+    except Exception:
+        pass
     
     texto_puesto = m.normalizar(f"{titulo} {lugar}")
     
@@ -181,7 +235,8 @@ def asegurar_usuario(db, chat_id, nombre):
 
 # ------------------------------------------------------------------ comandos
 # (Hoy los atiende el Worker de Cloudflare; este código queda por si se vuelve
-#  al modo anterior de leer mensajes con getUpdates.)
+#  al modo anterior de leer mensajes con getUpdates. Los comandos nuevos
+#  /limpiar, /ultimos y /resumen viven solo en el Worker.)
 
 def lista_desde(texto):
     """'soporte, Customer Success' -> ['soporte', 'customer success']"""
@@ -204,20 +259,18 @@ def sumar(actual, nuevos):
     return resultado, agregados
 
 
-def llego_al_maximo(actual, nuevos):
-    """True si hay palabras nuevas pero la lista ya está en el máximo (no se pudo agregar nada).
-    Si algo falla, devuelve False y se usa el mensaje de siempre."""
-    try:
-        claves = {m.normalizar(x) for x in actual}
-        return len(actual) >= MAX_PALABRAS and any(m.normalizar(x) not in claves for x in nuevos)
-    except Exception:
-        return False
-
-
 def restar(actual, quitar):
     claves = {m.normalizar(x) for x in quitar}
     quitados = [x for x in actual if m.normalizar(x) in claves]
     return [x for x in actual if m.normalizar(x) not in claves], quitados
+
+
+def llego_al_maximo(actual, nuevos):
+    """True si la lista ya está llena y había al menos una palabra realmente nueva."""
+    if len(actual) < MAX_PALABRAS:
+        return False
+    claves = {m.normalizar(x) for x in actual}
+    return any(m.normalizar(x) not in claves for x in nuevos)
 
 
 def resumen_filtros(u):
@@ -263,9 +316,9 @@ def procesar(db, chat_id, nombre, texto):
         if not items:
             return "Decime qué querés agregar. Ejemplo:\n/agregar soporte, customer success"
         palabras, agregadas = sumar(palabras, items)
-        if not agregadas and llego_al_maximo(palabras, items):
-            return f"Llegaste al máximo de {MAX_PALABRAS} palabras. Quitá alguna con /quitar"
         if not agregadas:
+            if llego_al_maximo(u.get("palabras", []), items):
+                return f"Llegaste al máximo de {MAX_PALABRAS} palabras. Quitá alguna con /quitar"
             return "Esas palabras ya estaban 😉\n\n" + resumen_filtros(u)
         ref.update({"palabras": palabras, "inicial": True})
         return (f"✅ Agregué: {', '.join(agregadas)}\n\n"
@@ -284,9 +337,9 @@ def procesar(db, chat_id, nombre, texto):
         if not items:
             return "Decime qué querés descartar. Ejemplo:\n/excluir senior, ventas"
         excluir, agregadas = sumar(excluir, items)
-        if not agregadas and llego_al_maximo(excluir, items):
-            return f"Llegaste al máximo de {MAX_PALABRAS} palabras. Quitá alguna con /quitar"
         if not agregadas:
+            if llego_al_maximo(u.get("excluir", []), items):
+                return f"Llegaste al máximo de {MAX_PALABRAS} palabras. Quitá alguna con /noexcluir"
             return "Esas palabras ya estaban 😉\n\n" + resumen_filtros(u)
         ref.update({"excluir": excluir})
         return f"✅ Voy a descartar puestos con: {', '.join(agregadas)}"
@@ -360,12 +413,81 @@ def procesar_mensajes(db):
 
 # -------------------------------------------------------------------- avisos
 
+def es_remoto(titulo, lugar):
+    """True si el título o la ubicación dicen que el puesto no depende del lugar."""
+    return bool(PATRON_REMOTO.search(m.normalizar(f"{titulo} {lugar}")))
+
+
+def declara_otro(texto, elegidos, patrones):
+    """True si el texto declara algún valor (nivel/modalidad) y ninguno es de los elegidos.
+    Si no declara nada, False: los puestos que no aclaran pasan."""
+    dichos = [k for k, p in patrones.items() if p.search(texto)]
+    return bool(dichos) and not any(k in dichos for k in elegidos)
+
+
+def descarta_por_nivel_modalidad(u, titulo, lugar):
+    """True solo si la persona configuró /nivel o /modalidad y el título/ubicación declaran
+    OTRO valor (ej: eligió junior y el título dice senior). Si no aclaran nada, pasan.
+    Sin configurar, o ante cualquier error, deja pasar el puesto."""
+    try:
+        texto = m.normalizar(f"{titulo} {lugar}")
+        niveles = [x for x in (u.get("nivel") or []) if x in PATRONES_NIVEL]
+        if niveles and declara_otro(texto, niveles, PATRONES_NIVEL):
+            return True
+        modalidades = [x for x in (u.get("modalidad") or []) if x in PATRONES_MODALIDAD]
+        if modalidades and declara_otro(texto, modalidades, PATRONES_MODALIDAD):
+            return True
+    except Exception as e:
+        print(f"[aviso] filtro nivel/modalidad falló ({type(e).__name__}): dejo pasar")
+    return False
+
+
+def zona_de(u):
+    """Zona de la persona: /zona, si no el primer país conocido de /pais, si no Argentina."""
+    z = u.get("zona", "")
+    if not z:
+        paises = u.get("pais", [])
+        if isinstance(paises, str):
+            paises = [paises] if paises else []
+        for p in paises:
+            z = ZONAS_PAIS.get(m.normalizar(p), "")
+            if z:
+                break
+    for candidata in (z, ZONA_DEFECTO):
+        try:
+            if candidata:
+                return ZoneInfo(candidata)
+        except Exception:
+            continue
+    return timezone(timedelta(hours=-3))  # último recurso (sin base de zonas): Argentina
+
+
+def en_silencio(u, ahora_utc):
+    """True si ahora es horario de silencio para esta persona (/silencio 22-8, en SU zona).
+    Ante cualquier error devuelve False: nunca se frena un aviso por un fallo."""
+    try:
+        rango = u.get("silencio", "")
+        if not rango:
+            return False
+        ini, fin = (int(x) for x in rango.split("-"))
+        if ini == fin or not (0 <= ini <= 23 and 0 <= fin <= 23):
+            return False
+        hora = ahora_utc.astimezone(zona_de(u)).hour
+        return (ini <= hora < fin) if ini < fin else (hora >= ini or hora < fin)
+    except Exception as e:
+        print(f"[aviso] silencio falló ({type(e).__name__}): no se aplica")
+        return False
+
+
 def clave_puesto(url_empresa, p):
     return hashlib.sha1(f"{url_empresa}|{p['id']}".encode("utf-8")).hexdigest()[:12]
 
 
 def avisar(db, uid, u, pendientes, descartados):
     """Manda a una persona sus puestos nuevos. Devuelve (enviados, errores)."""
+    # Horario de silencio (/silencio): no se envía ni se marca nada, llega después.
+    if en_silencio(u, datetime.now(timezone.utc)):
+        return 0, 0
     ref = doc_usuario(db, uid)
     avisados = list(u.get("avisados", []))
     inicial = u.get("inicial", False)
@@ -378,6 +500,28 @@ def avisar(db, uid, u, pendientes, descartados):
     grupos = {}
     for empresa, p, clave in a_enviar:
         grupos.setdefault(empresa, []).append((p, clave))
+
+    # --- Modo /resumen on: en vez de enviar ahora, se acumula para el mensaje diario.
+    # Si algo falla acá, en_cola queda en None y se envía como siempre.
+    en_cola = None
+    try:
+        if u.get("resumen", False) is True and a_enviar:
+            en_cola = [
+                json.dumps({
+                    "e": empresa,
+                    "titulo": p["titulo"],
+                    "lugar": p.get("lugar", ""),
+                    "url": p["url"],
+                    "sin_verificar": bool(p.get("sin_verificar")),
+                }, ensure_ascii=False)
+                for empresa, p, _ in a_enviar
+            ]
+    except Exception as e:
+        print(f"[aviso] {uid}: no pude armar la cola del resumen ({type(e).__name__}): envío normal")
+        en_cola = None
+    if en_cola is not None:
+        avisados += [c for _, _, c in a_enviar]
+        grupos = {}
 
     enviados = errores = 0
     bloqueado = False
@@ -392,8 +536,12 @@ def avisar(db, uid, u, pendientes, descartados):
         else:
             errores += 1
 
-    if enviados or omitidos or descartados or inicial or bloqueado:
+    if enviados or omitidos or descartados or inicial or bloqueado or en_cola:
         cambios = {"avisados": (avisados + omitidos + descartados)[-MAX_AVISADOS:]}
+        if enviados:
+            cambios["recibidos"] = firestore.Increment(enviados)  # para /stats
+        if en_cola:
+            cambios["cola_resumen"] = (list(u.get("cola_resumen", [])) + en_cola)[-MAX_COLA:]
         if bloqueado:
             cambios["activo"] = False
             print(f"[aviso] {uid} bloqueó el bot: lo dejo en pausa")
@@ -403,9 +551,96 @@ def avisar(db, uid, u, pendientes, descartados):
     return enviados, errores
 
 
+def armar_textos_resumen(items):
+    """Arma los mensajes del resumen diario (agrupados por empresa, partidos si son largos)."""
+    por_empresa = {}
+    for s in items:
+        try:
+            d = json.loads(s)
+            por_empresa.setdefault(d["e"], []).append({
+                "titulo": d["titulo"],
+                "lugar": d.get("lugar", ""),
+                "url": d["url"],
+                "sin_verificar": d.get("sin_verificar", False),
+            })
+        except Exception:
+            continue  # un elemento dañado no frena a los demás
+    total = sum(len(v) for v in por_empresa.values())
+    if not total:
+        return []
+    bloques = []
+    for empresa, ps in por_empresa.items():
+        for i in range(0, len(ps), 10):
+            bloques.append(m.armar_mensaje(empresa, ps[i:i + 10]))
+    encabezado = f"📋 Resumen del día: {total} puesto(s) nuevo(s)\n\n"
+    textos, actual = [], encabezado
+    for b in bloques:
+        if len(actual) + len(b) + 2 > 3800 and actual.strip():
+            textos.append(actual.rstrip())
+            actual = ""
+        actual += b + "\n\n"
+    if actual.strip():
+        textos.append(actual.rstrip())
+    return textos
+
+
+def enviar_resumenes_diarios(db):
+    """Manda el mensaje diario a quien tiene /resumen on. Devuelve cuántos puestos envió.
+    Si alguien apagó /resumen con cosas en cola, se le mandan en la próxima corrida."""
+    ahora = datetime.now(timezone.utc)
+    hoy = ahora.strftime("%Y-%m-%d")
+    total = 0
+    for d in db.collection("usuarios").stream():
+        try:
+            u = d.to_dict() or {}
+            cola = u.get("cola_resumen", [])
+            if not cola or not u.get("activo", True):
+                continue
+            if en_silencio(u, ahora):
+                continue
+            if u.get("resumen", False) is True:
+                if ahora.hour < HORA_RESUMEN_UTC or u.get("resumen_enviado") == hoy:
+                    continue
+            ref = doc_usuario(db, d.id)
+            textos = armar_textos_resumen(cola)
+            if not textos:
+                ref.update({"cola_resumen": []})
+                continue
+            ok = True
+            for texto in textos:
+                resultado = enviar(int(d.id), texto)
+                if resultado == "bloqueado":
+                    ref.update({"activo": False})
+                    print(f"[aviso] {d.id} bloqueó el bot: lo dejo en pausa")
+                    ok = False
+                    break
+                if resultado != "ok":
+                    ok = False
+                    break
+            if ok:
+                ref.update({"cola_resumen": [], "resumen_enviado": hoy,
+                            "recibidos": firestore.Increment(len(cola))})
+                total += len(cola)
+        except Exception as e:
+            print(f"[error resumen] {d.id}: {type(e).__name__}: {e}")
+    return total
+
+
 def buscar_y_avisar(db):
     estadisticas = {"enviados": 0, "errores": 0}
     usuarios = {d.id: d.to_dict() for d in db.collection("usuarios").stream()}
+    # Reactivar a quien pausó con /pausar <días> y ya cumplió el plazo
+    ahora_ts = time.time()
+    for uid, u in usuarios.items():
+        try:
+            hasta = u.get("pausa_hasta", 0)
+            if not u.get("activo", True) and hasta and ahora_ts >= hasta:
+                doc_usuario(db, uid).update({"activo": True, "inicial": True, "pausa_hasta": 0})
+                u["activo"], u["inicial"], u["pausa_hasta"] = True, True, 0
+                print(f"[info] {uid}: terminó su pausa, se reactiva")
+        except Exception as e:
+            print(f"[aviso] {uid}: no pude reactivar la pausa ({type(e).__name__})")
+
     activos = {uid: u for uid, u in usuarios.items() if u.get("activo", True) and u.get("palabras")}
     if not activos:
         print("No hay personas con avisos activos")
@@ -447,6 +682,18 @@ def buscar_y_avisar(db):
         print(f"[info] {nombre}: {len(puestos)} puestos, {len(en_zona)} en zona, "
               f"{coinciden} coinciden por título")
 
+        # Puestos remotos fuera de zona (solo los usa quien puso "remoto" en /pais);
+        # igual se respetan las ubicaciones bloqueadas (ej: "Remote - US").
+        try:
+            ids_zona = {id(p) for p in en_zona}
+            remotos_extra = [
+                p for p in puestos
+                if id(p) not in ids_zona and es_remoto(p["titulo"], p["lugar"])
+                and not any(b.search(m.normalizar(f"{p['titulo']} {p['lugar']}")) for b in bloqueadas)
+            ]
+        except Exception:
+            remotos_extra = []
+
         for uid in activos:
             u = activos[uid]
             incluir, excluir = filtros[uid]
@@ -459,13 +706,21 @@ def buscar_y_avisar(db):
             else:
                 paises_usuario = [p.strip().lower() for p in paises_bruto if p]
 
-            for p in en_zona:
+            candidatos = en_zona
+            if remotos_extra and "remoto" in [m.normalizar(x) for x in paises_usuario]:
+                candidatos = en_zona + remotos_extra
+
+            for p in candidatos:
                 clave = clave_puesto(url, p)
                 if clave in vistos[uid] or not m.coincide(p["titulo"], nombre, incluir, excluir):
                     continue
                 
                 # Validamos contra la lista de países elegidos por el usuario
                 if descarta_por_pais(paises_usuario, p["titulo"], p["lugar"]):
+                    continue
+
+                # /nivel y /modalidad (pasan los del valor elegido y los que no aclaran)
+                if descarta_por_nivel_modalidad(u, p["titulo"], p["lugar"]):
                     continue
 
                 marca = f"{clave}~{pref}"
@@ -533,6 +788,9 @@ def resumen_demo(db):
         f"Avisos enviados desde el último resumen: {d.get('avisos_desde_resumen', 0)}\n"
         f"Errores de lectura de empresas: {d.get('errores_desde_resumen', 0)}"
     )
+    if not ADMIN_CHAT_ID:
+        print("Falta el secret ADMIN_CHAT_ID")
+        return 1
     return 0 if enviar(int(ADMIN_CHAT_ID), texto) == "ok" else 1
 
 # ---------------------------------------------------------------------- main
@@ -554,6 +812,10 @@ def main():
     meta = db.collection("meta").document("estado")
     meta.set({"ultima_busqueda": time.time()}, merge=True)
     estadisticas = buscar_y_avisar(db)
+    try:
+        estadisticas["enviados"] += enviar_resumenes_diarios(db)
+    except Exception as e:
+        print(f"[error] resumen por persona: {type(e).__name__}: {e}")
     meta.set({
         "avisos_desde_resumen": firestore.Increment(estadisticas["enviados"]),
         "errores_desde_resumen": firestore.Increment(estadisticas["errores"]),
