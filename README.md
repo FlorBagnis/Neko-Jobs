@@ -7,11 +7,15 @@ Un bot gratuito que revisa cada hora las páginas de empleo de empresas tech y S
 
 ---
 
+<p align="center">
+  <a href="https://t.me/NekoJobsLATAM_bot">
+    <img src="https://img.shields.io/badge/Ver_Demo-Abrir_Bot-ff69b4?style=for-the-badge&logo=github&logoColor=white" alt="Ver Demo" />
+  </a>
+</p>
+
 ## 🚀 Bot compartido: ¡ya está disponible!
 
 Ya podés usar **Neko Jobs** directamente desde Telegram, sin instalar nada ni saber programar. Es gratis y está pensado para **Argentina y LATAM** 🥰
-
-👉 **[t.me/NekoJobsLATAM_bot](https://t.me/NekoJobsLATAM_bot)**
 
 ### ⚙️ ¿Cómo funciona?
 
