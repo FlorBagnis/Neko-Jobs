@@ -1,6 +1,6 @@
 # 🐾 Neko-Jobs · Monitor de ofertas laborales
 
-<img width="767" height="494" alt="image" src="https://github.com/user-attachments/assets/f2a5b9dc-cf18-47a8-bc76-26eb012732dc" />
+<img width="1804" height="930" alt="image" src="https://github.com/user-attachments/assets/b552929b-ef4a-4f42-b16e-5ac817e95fd0" />
 
  
 Un bot gratuito que revisa cada hora las páginas de empleo de empresas tech y SaaS, filtra los puestos según tus palabras clave y te avisa por Telegram cuando aparece uno nuevo. Corre solo en GitHub Actions: no necesitás servidor ni saber programar.
