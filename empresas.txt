@@ -31,6 +31,7 @@ Fudo | https://fu.do/es-ar/trabaja-con-nosotros/ | AR
 Morfy | https://www.morfy.app/empleos#open-positions | AR
 
 
+
 # --- Fintech, pagos y tech de LATAM / remoto ---
 Yuno | https://jobs.lever.co/yuno
 Bitso | https://bitso.com/ar/jobs
@@ -54,6 +55,7 @@ Siena AI | https://jobs.ashbyhq.com/siena
 Rehire | https://jobs.ashbyhq.com/rehire
 Hire Hangar | https://jobs.ashbyhq.com/hirehangar
 Monster Energy LATAM | https://job-boards.greenhouse.io/monsterenergylatam
+Educabot | https://ebt-sg.factorial.com/#jobs
 
 # --- Get on Board: bolsa de trabajo con empleos de MUCHAS empresas de LATAM ---
 # Una línea por rubro, así cada persona recibe lo que se anota con /agregar.
