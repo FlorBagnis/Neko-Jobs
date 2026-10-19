@@ -29,7 +29,7 @@ dLocal (Buenos Aires) | https://jobs.lever.co/dlocal?location=Buenos+Aires | AR
 Tapi | https://applicants.selenios.com/c/tapi | AR
 Fudo | https://fu.do/es-ar/trabaja-con-nosotros/ | AR
 Morfy | https://www.morfy.app/empleos#open-positions | AR
-
+Educabot | https://ebt-sg.factorial.com/#jobs | AR
 
 
 # --- Fintech, pagos y tech de LATAM / remoto ---
@@ -55,7 +55,7 @@ Siena AI | https://jobs.ashbyhq.com/siena
 Rehire | https://jobs.ashbyhq.com/rehire
 Hire Hangar | https://jobs.ashbyhq.com/hirehangar
 Monster Energy LATAM | https://job-boards.greenhouse.io/monsterenergylatam
-Educabot | https://ebt-sg.factorial.com/#jobs
+
 
 # --- Get on Board: bolsa de trabajo con empleos de MUCHAS empresas de LATAM ---
 # Una línea por rubro, así cada persona recibe lo que se anota con /agregar.
