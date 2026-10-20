@@ -25,11 +25,18 @@ Despegar | https://jobs.lever.co/despegar?location=Buenos+Aires | AR
 Coderio | https://jobs.lever.co/coderio?location=Buenos+Aires | AR
 OLIVER Argentina | https://job-boards.greenhouse.io/oliverargentina | AR
 Aleph (Buenos Aires) | https://jobs.lever.co/aleph?location=Buenos+Aires%2C+Argentina | AR
-dLocal (Buenos Aires) | https://jobs.lever.co/dlocal?location=Buenos+Aires | AR
+dLocal | https://jobs.lever.co/dlocal | AR
 Tapi | https://applicants.selenios.com/c/tapi | AR
 Fudo | https://fu.do/es-ar/trabaja-con-nosotros/ | AR
 Morfy | https://www.morfy.app/empleos#open-positions | AR
 Educabot | https://ebt-sg.factorial.com/#jobs | AR
+InvGate | https://job-boards.greenhouse.io/invgate | AR
+Emi Labs | https://jobs.lever.co/emilabs | AR
+Cocos Capital | https://cocoscapital.recruitee.com/ | AR
+Prex | https://prex.bamboohr.com/careers
+Rebill | https://go.rebill.com/careers | AR
+Payway | https://talento.payway.com.ar/ | AR
+Globant | https://career.globant.com/
 
 
 # --- Fintech, pagos y tech de LATAM / remoto ---
@@ -55,6 +62,17 @@ Siena AI | https://jobs.ashbyhq.com/siena
 Rehire | https://jobs.ashbyhq.com/rehire
 Hire Hangar | https://jobs.ashbyhq.com/hirehangar
 Monster Energy LATAM | https://job-boards.greenhouse.io/monsterenergylatam
+Webflow | https://job-boards.greenhouse.io/webflow
+Donorbox | https://job-boards.greenhouse.io/donorbox
+Ashby | https://jobs.ashbyhq.com/ashby
+Wise | https://wise.com.ar/trabaja-con-nosotros/
+Payoneer | https://careers.payoneer.com/
+Remitly | https://careers.remitly.com/
+Mural | https://www.mural.co/careers
+Automattic | https://automattic.com/work-with-us/jobs/
+GitLab | https://about.gitlab.com/jobs/all-jobs/
+Rippling | https://www.rippling.com/es-ES/careers/open-roles
+Remote.com | https://remote.com/es-es/empleo
 
 
 # --- Get on Board: bolsa de trabajo con empleos de MUCHAS empresas de LATAM ---
