@@ -304,7 +304,7 @@ Distribuido bajo licencia MIT. Ver el archivo `LICENSE`.
 **Florencia Bagnis**
 
 * 💼 [LinkedIn](https://www.linkedin.com/in/florencia-bagnis)
-* 💻 [Portfolio](https://florbagnis.github.io/Portfolio-FlorBagnis/)
+* 💻 [Portfolio](https://florbagnis.github.io/)
 * 📧 [florenciasoledadbagnis@gmail.com](mailto:florenciasoledadbagnis@gmail.com)
 
 <br>
