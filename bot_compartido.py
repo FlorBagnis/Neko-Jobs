@@ -24,6 +24,7 @@ import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qsl, urlencode, urlparse
 from zoneinfo import ZoneInfo
 
 import firebase_admin
@@ -479,8 +480,31 @@ def en_silencio(u, ahora_utc):
         return False
 
 
-def clave_puesto(url_empresa, p):
+def clave_puesto_vieja(url_empresa, p):
+    """Formato anterior (depende de la página donde se encontró). Solo para compatibilidad."""
     return hashlib.sha1(f"{url_empresa}|{p['id']}".encode("utf-8")).hexdigest()[:12]
+
+
+_PARAMS_TRACKING = {"fbclid", "gclid", "ref", "source", "src", "gh_src", "lever-source", "lever-origin"}
+
+
+def url_canonica(url):
+    """Link sin #fragmento, sin parámetros de tracking y sin barra final."""
+    u = urlparse(url or "")
+    query = [(k, v) for k, v in parse_qsl(u.query, keep_blank_values=True)
+             if not k.lower().startswith("utm_") and k.lower() not in _PARAMS_TRACKING]
+    path = u.path.rstrip("/")
+    return f"{u.netloc.lower()}{path}" + (f"?{urlencode(query)}" if query else "")
+
+
+def clave_puesto(url_empresa, p):
+    """Un puesto = un link. Si aparece en otra categoría/página con el mismo link, es el mismo.
+    Si el link es el de la página de la empresa (ej. Selenios, que no da link por puesto),
+    se usa además el id para no mezclar puestos distintos."""
+    canon = url_canonica(p.get("url"))
+    if not canon or canon == url_canonica(url_empresa):
+        canon = f"{canon}|{p['id']}"
+    return hashlib.sha1(canon.encode("utf-8")).hexdigest()[:12]
 
 
 def avisar(db, uid, u, pendientes, descartados):
@@ -712,7 +736,9 @@ def buscar_y_avisar(db):
 
             for p in candidatos:
                 clave = clave_puesto(url, p)
-                if clave in vistos[uid] or not m.coincide(p["titulo"], nombre, incluir, excluir):
+                vieja = clave_puesto_vieja(url, p)
+                if clave in vistos[uid] or vieja in vistos[uid] \
+                        or not m.coincide(p["titulo"], nombre, incluir, excluir):
                     continue
                 
                 # Validamos contra la lista de países elegidos por el usuario
@@ -724,7 +750,7 @@ def buscar_y_avisar(db):
                     continue
 
                 marca = f"{clave}~{pref}"
-                if marca in vistos[uid]:
+                if marca in vistos[uid] or f"{vieja}~{pref}" in vistos[uid]:
                     continue
                 if clave not in cache_idioma:
                     cache_idioma[clave] = m.idioma_del_texto(m.texto_del_puesto(p))
@@ -732,11 +758,13 @@ def buscar_y_avisar(db):
                 idioma = cache_idioma[clave]
                 if descarta_por_idioma(pref, idioma):
                     descartados[uid].append(marca)
+                    vistos[uid].add(marca)  # no repetir si aparece en otra página en esta corrida
                     continue
                 q = dict(p)
                 if idioma is None:
                     q["sin_verificar"] = True
                 pendientes[uid].append((nombre, q, clave))
+                vistos[uid].add(clave)  # no repetir si aparece en otra página en esta corrida
 
     print(f"[info] puestos pendientes de avisar (suma de todas las personas): "
           f"{sum(len(v) for v in pendientes.values())}")
